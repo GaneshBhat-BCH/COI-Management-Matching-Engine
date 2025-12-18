@@ -53,7 +53,7 @@ echo [INFO] Using %PYTHON_EXE% for setup.
 REM 2. Create Virtual Environment if it doesn't exist
 if not exist "backend\venv" (
     echo [INFO] Creating Virtual Environment (backend/venv)...
-    %PYTHON_EXE% -m venv backend\venv
+    %PYTHON_EXE% -m venv backend\venv || goto :ERROR_EXIT
     set NEEDS_INSTALL=true
 ) else (
     echo [INFO] Virtual Environment already exists.
@@ -70,8 +70,8 @@ REM 3. Install Dependencies if needed
 if "%NEEDS_INSTALL%"=="true" (
     echo [INFO] Installing/Updating requirements...
     call backend\venv\Scripts\activate
-    python -m pip install --upgrade pip
-    python -m pip install -r backend\requirements.txt
+    python -m pip install --upgrade pip || goto :ERROR_EXIT
+    python -m pip install -r backend\requirements.txt || goto :ERROR_EXIT
 ) else (
     echo [INFO] Skipping dependency installation for speed.
 )
@@ -108,13 +108,28 @@ echo ====================================================
 echo      Setup Complete! 
 echo ====================================================
 
+powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Environment setup completed successfully!', 'Information,OkOnly', 'Setup Success')"
+
 if "%~1"=="--auto" exit /b
 
 set /p RUN_INIT="Do you want to initialize the database now? (y/n): "
 if /i "%RUN_INIT%"=="y" (
-    call init_db.bat
+    call init_db.bat || (
+        powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Database initialization failed! Please check the console for errors.', 'Critical,OkOnly', 'Setup Error')"
+        pause
+        exit /b
+    )
+    powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Database initialized successfully!', 'Information,OkOnly', 'DB Success')"
 )
 
 echo.
 echo You can now use 'run_backend.bat' to start the server.
 pause
+exit /b
+
+:ERROR_EXIT
+echo.
+echo [ERROR] An error occurred during setup.
+powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('An error occurred during setup. Please check the console window for details.', 'Critical,OkOnly', 'Setup Error')"
+pause
+exit /b
