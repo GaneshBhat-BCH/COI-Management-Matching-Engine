@@ -8,18 +8,36 @@ echo ====================================================
 cd /d "%~dp0"
 
 REM 1. Check Python
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
+set PYTHON_EXE=
+where python >nul 2>&1
+if %errorlevel% equ 0 (
+    set PYTHON_EXE=python
+) else (
+    where py >nul 2>&1
+    if %errorlevel% equ 0 (
+        set PYTHON_EXE=py
+    ) else (
+        where python3 >nul 2>&1
+        if %errorlevel% equ 0 (
+            set PYTHON_EXE=python3
+        )
+    )
+)
+
+if "%PYTHON_EXE%"=="" (
     echo [ERROR] Python is not installed or not in PATH.
-    echo Please install Python 3.10+ and check "Add to PATH" during installation.
+    echo Please install Python 3.10+ from python.org and check "Add to PATH".
     pause
     exit /b
 )
 
+echo [INFO] Using %PYTHON_EXE% for setup.
+%PYTHON_EXE% --version
+
 REM 2. Create Virtual Environment if it doesn't exist
 if not exist "backend\venv" (
     echo [INFO] Creating Virtual Environment (backend/venv)...
-    python -m venv backend\venv
+    %PYTHON_EXE% -m venv backend\venv
     set NEEDS_INSTALL=true
 ) else (
     echo [INFO] Virtual Environment already exists.
@@ -37,7 +55,7 @@ if "%NEEDS_INSTALL%"=="true" (
     echo [INFO] Installing/Updating requirements...
     call backend\venv\Scripts\activate
     python -m pip install --upgrade pip
-    pip install -r backend\requirements.txt
+    python -m pip install -r backend\requirements.txt
 ) else (
     echo [INFO] Skipping dependency installation for speed.
 )
