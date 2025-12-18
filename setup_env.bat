@@ -25,8 +25,24 @@ if %errorlevel% equ 0 (
 )
 
 if "%PYTHON_EXE%"=="" (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo Please install Python 3.10+ from python.org and check "Add to PATH".
+    echo [WARNING] Python is not installed. Attempting to install via winget...
+    where winget >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo [INFO] Installing Python 3.12...
+        winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
+        if %errorlevel% equ 0 (
+            echo [SUCCESS] Python installed. Please RESTART this script to refresh PATH.
+            pause
+            exit /b
+        ) else (
+            echo [ERROR] Automated installation failed.
+        )
+    ) else (
+        echo [ERROR] winget not found. Cannot auto-install Python.
+    )
+    
+    echo.
+    echo Please install Python 3.10+ manually from python.org and check "Add to PATH".
     pause
     exit /b
 )
@@ -68,6 +84,24 @@ if not exist "backend\.env" (
 ) else (
     echo [INFO] .env file found.
 )
+
+REM 5. Check Tesseract (Prerequisite for OCR)
+where tesseract >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [WARNING] Tesseract OCR not found. Attempting to install via winget...
+    where winget >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo [INFO] Installing Tesseract OCR...
+        winget install --id UB.TesseractOCR -e --source winget --accept-package-agreements --accept-source-agreements
+        echo [INFO] Tesseract installed. You may need to restart the terminal or add it to PATH manually.
+    ) else (
+        echo [ERROR] Tesseract missing and winget not found. OCR features may fail.
+    )
+) else (
+    echo [INFO] Tesseract OCR found.
+)
+
+echo.
 
 echo.
 echo ====================================================
