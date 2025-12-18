@@ -1,152 +1,108 @@
 @echo off
-SETLOCAL EnableDelayedExpansion
-TITLE COI Management - One-Click Launcher
-COLOR 0A
 cd /d "%~dp0"
+TITLE COI Management - One-Click Launcher
 
-echo.
 echo ====================================================
 echo      COI MANAGEMENT MATCHING ENGINE
-echo      Automated Setup and Launch
 echo ====================================================
 echo.
-echo [INFO] Starting automated setup...
+echo Starting automated setup...
 echo.
 
-REM === STEP 1: Check/Install Python ===
-echo [STEP 1/5] Checking Python...
-echo ------------------------------------------------
-set PYTHON_EXE=
+REM Check Python
+echo [1/5] Checking Python...
 where python >nul 2>&1
-if !errorlevel! equ 0 (
-    set PYTHON_EXE=python
-) else (
-    where py >nul 2>&1
-    if !errorlevel! equ 0 (
-        set PYTHON_EXE=py
-    ) else (
-        where python3 >nul 2>&1
-        if !errorlevel! equ 0 (
-            set PYTHON_EXE=python3
-        )
-    )
+if %errorlevel% equ 0 (
+    set PYTHON_CMD=python
+    goto :PYTHON_OK
+)
+where py >nul 2>&1
+if %errorlevel% equ 0 (
+    set PYTHON_CMD=py
+    goto :PYTHON_OK
 )
 
-if "!PYTHON_EXE!"=="" (
-    echo [!] Python not found. Installing via winget...
-    echo [*] This may take 2-3 minutes...
-    where winget >nul 2>&1
-    if !errorlevel! equ 0 (
-        winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
-        echo [SUCCESS] Python installed. Please RESTART this script.
-        powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Python installed! Please run this script again.', 'Information,OkOnly', 'Restart Required')"
-        exit /b
-    ) else (
-        powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Python is required but winget is not available. Please install Python from python.org', 'Critical,OkOnly', 'Error')"
-        exit /b
-    )
-)
-echo [SUCCESS] Python found: !PYTHON_EXE!
+echo ERROR: Python not found!
+echo Please install Python from python.org
+pause
+exit /b
+
+:PYTHON_OK
+echo SUCCESS: Python found
 echo.
 
-REM === STEP 2: Create Virtual Environment ===
-echo [STEP 2/5] Setting up Virtual Environment...
-echo ------------------------------------------------
+REM Create venv if needed
+echo [2/5] Checking Virtual Environment...
 if not exist "backend\venv" (
-    echo [*] Creating virtual environment...
-    echo [*] Please wait (30-60 seconds)...
-    !PYTHON_EXE! -m venv backend\venv
-    if !errorlevel! neq 0 (
-        powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Failed to create virtual environment!', 'Critical,OkOnly', 'Error')"
+    echo Creating virtual environment... Please wait...
+    %PYTHON_CMD% -m venv backend\venv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to create venv
+        pause
         exit /b
     )
-    echo [SUCCESS] Virtual environment created
-    set NEEDS_INSTALL=1
+    echo SUCCESS: Virtual environment created
+    set INSTALL_DEPS=1
 ) else (
-    echo [SUCCESS] Virtual environment already exists
-    set NEEDS_INSTALL=0
+    echo SUCCESS: Virtual environment exists
+    set INSTALL_DEPS=0
 )
 echo.
 
-REM === STEP 3: Install Dependencies ===
-echo [STEP 3/5] Installing Python Packages...
-echo ------------------------------------------------
-if !NEEDS_INSTALL! equ 1 (
-    echo [*] Installing dependencies...
-    echo [*] This may take 2-5 minutes on first run...
-    echo [*] Progress: [..................] 0%%
-    call backend\venv\Scripts\activate
-    python -m pip install --upgrade pip >nul 2>&1
-    echo [*] Progress: [####..............] 20%%
+REM Install dependencies if needed
+echo [3/5] Checking Dependencies...
+if "%INSTALL_DEPS%"=="1" (
+    echo Installing packages... This may take 2-5 minutes...
+    call backend\venv\Scripts\activate.bat
+    python -m pip install --upgrade pip
     python -m pip install -r backend\requirements.txt
-    if !errorlevel! neq 0 (
-        powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Failed to install dependencies!', 'Critical,OkOnly', 'Error')"
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to install packages
+        pause
         exit /b
     )
-    echo [*] Progress: [##################] 100%%
-    echo [SUCCESS] All packages installed
+    echo SUCCESS: Packages installed
 ) else (
-    echo [SUCCESS] Dependencies already installed (skipping)
+    echo SUCCESS: Dependencies already installed
 )
 echo.
 
-REM === STEP 4: Initialize Database ===
-echo [STEP 4/5] Initializing Database...
-echo ------------------------------------------------
-call backend\venv\Scripts\activate
-echo [*] Checking database schema...
-python backend\init_db.py >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [WARNING] Database initialization had issues (may already exist)
-) else (
-    echo [SUCCESS] Database ready
-)
+REM Initialize database
+echo [4/5] Initializing Database...
+call backend\venv\Scripts\activate.bat
+python backend\init_db.py
+echo Database ready
 echo.
 
-REM === STEP 5: Start Server ===
-echo [STEP 5/5] Starting Server...
-echo ------------------------------------------------
-echo [*] Cleaning up any existing processes...
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do (
-    taskkill /F /PID %%a >nul 2>&1
-)
+REM Start server
+echo [5/5] Starting Server...
+echo Cleaning up port 8000...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 
-echo [*] Launching FastAPI server...
-start /B python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 >nul 2>&1
+echo Launching server...
+start /B python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
-echo [*] Waiting for server to start...
-echo [*] Progress: [####..............] 25%%
-timeout /t 2 /nobreak >nul
-echo [*] Progress: [########..........] 50%%
-timeout /t 2 /nobreak >nul
-echo [*] Progress: [############......] 75%%
-timeout /t 2 /nobreak >nul
-echo [*] Progress: [##################] 100%%
+echo Waiting for server to start...
+timeout /t 5 /nobreak >nul
 
-REM Health check
+REM Check if server is running
 curl -s http://localhost:8000/ >nul 2>&1
-if !errorlevel! equ 0 (
+if %errorlevel% equ 0 (
     echo.
     echo ====================================================
     echo      SERVER IS RUNNING!
-    echo ====================================================
-    echo      API Docs: http://localhost:8000/docs
+    echo      http://localhost:8000/docs
     echo ====================================================
     echo.
-    powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Project is UP and RUNNING!`n`nAPI Documentation:`nhttp://localhost:8000/docs`n`nClick OK to keep server running.`nClose the console window to stop.', 'Information,OkOnly', 'SUCCESS - Server Ready')"
-    echo [INFO] Server is running. Press any key to STOP the server...
+    powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server is UP and RUNNING!\n\nAPI: http://localhost:8000/docs\n\nClick OK to keep running', 'Information', 'SUCCESS')}"
+    echo.
+    echo Press any key to STOP the server...
     pause >nul
-    
-    REM Stop server
-    echo [*] Stopping server...
-    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do (
-        taskkill /F /PID %%a >nul 2>&1
-    )
-    echo [SUCCESS] Server stopped cleanly.
+    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+    echo Server stopped.
 ) else (
-    echo [ERROR] Server failed to start!
-    powershell -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server failed to start! Check the console for errors.', 'Critical,OkOnly', 'Error')"
+    echo ERROR: Server failed to start
+    powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server failed to start!', 'Critical', 'ERROR')}"
 )
 
 pause
-exit /b
