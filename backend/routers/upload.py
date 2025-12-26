@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from backend.database import get_db
 from backend.services.ai import analyze_document_and_answer, get_embeddings
-from backend.questions import QUESTIONS
+from backend.questions import QUESTIONS, QUESTIONS_DATA
 from backend.utils.chunking import chunk_text
 from backend.utils.logger import log_event
 from pydantic import BaseModel
@@ -36,7 +36,7 @@ async def upload_file(
         full_context = f"User Input:\n{request.user_text}\n\nDocument Content:\n{request.pdf_text}"
         
         # 2. Get Answers (AI)
-        ai_result = await analyze_document_and_answer(full_context, QUESTIONS)
+        ai_result = await analyze_document_and_answer(full_context, QUESTIONS_DATA)
         answers_data = ai_result.get("answers", [])
         token_usage = ai_result.get("usage", {})
         
@@ -77,14 +77,19 @@ async def upload_file(
             })
         
         if ans_values:
-            await db.execute_many(query_ans, values=ans_values)
+            # Fallback to loop to avoid potential execute_many hangs with large vectors
+            for val in ans_values:
+                await db.execute(query_ans, values=val)
             
         log_event("Upload Module", "AI Analysis & Answer Storage complete", "PROGRESS")
         
         # 6. RAG Vectorization (Structured Answers Only)
         chunks_to_index = []
         if request.user_text.strip():
-             chunks_to_index.append(f"General Context / Instructions: {request.user_text}")
+             # Use variable chunking for potentially long user context
+             user_text_chunks = chunk_text(request.user_text, target_chunk_size=1000)
+             for i, c in enumerate(user_text_chunks):
+                 chunks_to_index.append(f"General Context / Instructions (Part {i+1}): {c}")
              
         for item in answers_result:
             if item["answer_text"] != "N/A":

@@ -51,9 +51,21 @@ async def get_embeddings(input_data: str | list[str]):
     else:
         return [item.embedding for item in response.data]
 
-async def analyze_document_and_answer(text_content: str, questions: list[dict]) -> dict:
+async def analyze_document_and_answer(text_content: str, questions_config: dict | list) -> dict:
     log_event("AI Service", "constructing prompt", "START")
     
+    # Handle backward compatibility or list input
+    if isinstance(questions_config, list):
+        questions_list = questions_config
+        global_instr = {}
+        hms_policy = {}
+        phs_policy = {}
+    else:
+        questions_list = questions_config.get("QUESTIONS", [])
+        global_instr = questions_config.get("global_instructions", {})
+        hms_policy = questions_config.get("HMS_COI_Policy", {})
+        phs_policy = questions_config.get("PHS_COI_Policy", {})
+
     prompt = f"""
     You are a forensic document auditor. Your goal is to extract specific details from the document text provided below.
     
@@ -65,18 +77,15 @@ async def analyze_document_and_answer(text_content: str, questions: list[dict]) 
     YOUR TASK:
     Answer the following questions based on the document text.
     
-    RULES:
-    1.  **AGGRESSIVE EXTRACTION**: Maps names, roles, numerical values (equity, compensation), and relationships even if they are mentioned indirectly or in a standard "legalese" format.
-    2.  **INFERENCE IS REQUIRED**: If the document allows for a reasonable deduction (e.g. "Founder" implies "Equity holder"), state it. 
-    3.  **NO "N/A"**: Do NOT return "N/A" simply because the exact wording isn't found. Return the closest related information found. Only return "N/A" if the document is completely silent on the topic.
-    4.  **EXTREME BREVITY**: Answers must be specific and concise. 
-        *   **GOOD**: "25% equity", "$24,000/year", "Co-founder"
-        *   **BAD**: "The researcher holds a 25% equity stake which will dilute over time..."
-        *   Start with the direct answer. Avoid full sentences unless necessary for context.
-    5.  **FORMAT**: Return a JSON object with a key "answers" containing a list of objects.
-    
-    QUESTIONS TO ANSWER (Use these IDs):
-    {json.dumps(questions, indent=2)}
+    GLOBAL INSTRUCTIONS:
+    {json.dumps(global_instr, indent=2)}
+
+    REFERENCE POLICIES:
+    HMS_COI_Policy: {json.dumps(hms_policy, indent=2)}
+    PHS_COI_Policy: {json.dumps(phs_policy, indent=2)}
+
+    QUESTIONS AND EXTRACTION PROMPTS:
+    {json.dumps(questions_list, indent=2)}
 
     OUTPUT FORMAT (JSON):
     {{
@@ -93,7 +102,7 @@ async def analyze_document_and_answer(text_content: str, questions: list[dict]) 
         response = await client.chat.completions.create(
             model=GPT_DEPLOYMENT,
             messages=[
-                {"role": "system", "content": "You are a forensic auditor AI. Extract every possible detail. Do not be lazy. Never answer N/A if any relevant text exists."},
+                {"role": "system", "content": "You are a forensic auditor AI. Extract every possible detail. Do not be lazy. Never answer N/A if any relevant text exists. Follow specific prompts for each question."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}

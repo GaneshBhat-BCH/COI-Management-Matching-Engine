@@ -3,9 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 from pathlib import Path
-from backend.database import database
 from backend.routers.upload import router as upload_router
 from backend.routers.search import router as search_router
+from backend.database import database
 
 # Load .env from the same directory as this file
 env_path = Path(__file__).parent / ".env"
