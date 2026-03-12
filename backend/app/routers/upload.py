@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
-from backend.database import get_db
-from backend.services.ai import analyze_document_and_answer, get_embeddings
-from backend.questions import QUESTIONS, QUESTIONS_DATA
-from backend.utils.chunking import chunk_text
-from backend.utils.logger import log_event
+from app.database import get_db
+from app.services.ai import analyze_document_and_answer, get_embeddings
+from app.questions import QUESTIONS, QUESTIONS_DATA
+from app.utils.chunking import chunk_text
+from app.utils.logger import log_event
 from pydantic import BaseModel
 import uuid
 

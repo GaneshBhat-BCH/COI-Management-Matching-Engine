@@ -3,7 +3,7 @@ import os
 import json
 from dotenv import load_dotenv
 from pathlib import Path
-from backend.utils.logger import log_event
+from app.utils.logger import log_event
 
 # Load .env
 env_path = Path(__file__).parent.parent / ".env"

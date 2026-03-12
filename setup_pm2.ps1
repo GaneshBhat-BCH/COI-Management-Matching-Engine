@@ -1,7 +1,7 @@
 # PM2 Setup and Deployment Script for Windows VM
 
 $PORT = 8001
-$APP_NAME = "coi-backend"
+$APP_NAME = "COI-Management-Matching-Engine"
 
 # Ensure the script runs from its own directory
 Set-Location -Path $PSScriptRoot

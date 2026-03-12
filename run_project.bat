@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-TITLE COI Management - One-Click Launcher
+TITLE COI Management Matching Engine - One-Click Launcher
 
 echo ====================================================
 echo      COI MANAGEMENT MATCHING ENGINE
@@ -42,67 +42,71 @@ if not exist "backend\venv" (
         exit /b
     )
     echo SUCCESS: Virtual environment created
-    set INSTALL_DEPS=1
 ) else (
     echo SUCCESS: Virtual environment exists
-    set INSTALL_DEPS=0
 )
 echo.
 
 REM Install dependencies if needed
 echo [3/5] Checking Dependencies...
-if "%INSTALL_DEPS%"=="1" (
-    echo Installing packages... This may take 2-5 minutes...
-    call backend\venv\Scripts\activate.bat
-    python -m pip install --upgrade pip
-    python -m pip install -r backend\requirements.txt
-    if %errorlevel% neq 0 (
-        echo ERROR: Failed to install packages
-        pause
-        exit /b
-    )
-    echo SUCCESS: Packages installed
-) else (
-    echo SUCCESS: Dependencies already installed
+echo Installing packages...
+call backend\venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+python -m pip install -r backend\requirements.txt
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to install packages
+    pause
+    exit /b
 )
+echo SUCCESS: Packages installed
 echo.
 
 REM Initialize database
-echo [4/5] Initializing Database...
-call backend\venv\Scripts\activate.bat
-python backend\init_db.py
-echo Database ready
+echo [4/5] Checking Database Initialization...
+cd backend
+call venv\Scripts\activate.bat
+if exist "init_db.py" (
+    echo Running database initialization...
+    python init_db.py
+)
+echo Database checks complete.
 echo.
 
 REM Start server
 echo [5/5] Starting Server...
-echo Cleaning up port 8000...
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+echo Cleaning up port 8001...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8001 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 
 echo Launching server...
-start /B python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+start /B venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 echo Waiting for server to start...
-timeout /t 15 /nobreak >nul
+set max_retries=30
+set retry_count=0
 
-REM Check if server is running
-curl -s http://localhost:8000/ >nul 2>&1
-if %errorlevel% equ 0 (
-    echo.
-    echo ====================================================
-    echo      SERVER IS RUNNING!
-    echo      http://localhost:8000/docs
-    echo ====================================================
-    echo.
-    powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server is UP and RUNNING!\n\nAPI: http://localhost:8000/docs\n\nClick OK to keep running', 'Information', 'SUCCESS')}"
-    echo.
-    echo Press any key to STOP the server...
-    pause >nul
-    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
-    echo Server stopped.
-) else (
-    echo ERROR: Server failed to start
-    powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server failed to start!', 'Critical', 'ERROR')}"
-)
+:wait_loop
+timeout /t 2 /nobreak >nul
+curl -s http://localhost:8001/ >nul 2>&1
+if %errorlevel% equ 0 goto server_running
 
+set /a retry_count+=1
+if %retry_count% lss %max_retries% goto wait_loop
+
+echo ERROR: Server failed to start after 60 seconds.
+goto end_script
+
+:server_running
+echo.
+echo ====================================================
+echo      SERVER IS RUNNING!
+echo      http://localhost:8001/
+echo ====================================================
+echo.
+echo Press any key to STOP the server...
+pause >nul
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8001 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+echo Server stopped.
+
+:end_script
+cd ..
 pause

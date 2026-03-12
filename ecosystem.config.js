@@ -1,9 +1,9 @@
 module.exports = {
   apps: [{
-    name: "coi-backend",
-    script: "backend/venv/Scripts/uvicorn.exe",
-    args: "backend.main:app --host 0.0.0.0 --port 8001",
-    cwd: ".",
+    name: "COI-Management-Matching-Engine",
+    script: "venv/Scripts/uvicorn.exe",
+    args: "app.main:app --host 0.0.0.0 --port 8001",
+    cwd: "./backend",
     instances: 1,
     autorestart: true,
     watch: false,

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
-from backend.database import get_db
-from backend.services.ai import get_embeddings
-from backend.utils.logger import log_event
-from backend.utils.html_templates import generate_search_results_html
-from backend.questions import QUESTIONS
+from app.database import get_db
+from app.services.ai import get_embeddings
+from app.utils.logger import log_event
+from app.utils.html_templates import generate_search_results_html
+from app.questions import QUESTIONS
 from pydantic import BaseModel
 import json
 
