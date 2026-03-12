@@ -97,6 +97,7 @@ if !retry_count! lss !max_retries! (
 )
 
 echo ERROR: Server failed to start after 60 seconds.
+powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server failed to start after 60 seconds! Please check the terminal for errors.', 'Critical', 'ERROR')}"
 goto :end_script
 
 :server_running
@@ -105,6 +106,8 @@ echo ====================================================
 echo      SERVER IS RUNNING!
 echo      http://localhost:8001/
 echo ====================================================
+echo.
+powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server is UP and RUNNING!\n\nAPI: http://localhost:8001/\n\nClick OK to keep running', 'Information', 'SUCCESS')}"
 echo.
 echo Press any key to STOP the server...
 pause >nul
