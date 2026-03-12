@@ -21,30 +21,13 @@ The script will:
 
 ## Management Commands
 
-### Check Status
-```bash
-pm2 status
-```
+### Essential PM2 Commands
 
-### View Logs
-```bash
-pm2 logs coi-backend
-```
-
-### Stop Application
-```bash
-pm2 stop coi-backend
-```
-
-### Restart Application
-```bash
-pm2 restart coi-backend
-```
-
-### Delete Application from PM2
-```bash
-pm2 delete coi-backend
-```
+- **Check Status**: `pm2 status COI-Management-Matching-Engine`
+- **View Logs**: `pm2 logs COI-Management-Matching-Engine`
+- **Restart**: `pm2 restart COI-Management-Matching-Engine`
+- **Stop**: `pm2 stop COI-Management-Matching-Engine`
+- **Delete**: `pm2 delete COI-Management-Matching-Engine`
 
 ## Persistence (Startup on Boot)
 To ensure the application starts automatically when the VM reboots:
