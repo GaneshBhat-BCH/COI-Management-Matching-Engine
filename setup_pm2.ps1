@@ -3,6 +3,9 @@
 $PORT = 8001
 $APP_NAME = "coi-backend"
 
+# Ensure the script runs from its own directory
+Set-Location -Path $PSScriptRoot
+
 Write-Host "--- Starting PM2 Deployment Strategy ---" -ForegroundColor Cyan
 
 # 1. Port Cleanup: Kill any process running on port 8000
