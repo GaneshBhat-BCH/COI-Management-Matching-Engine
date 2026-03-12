@@ -150,7 +150,12 @@ async def upload_file(
 
         return response_data
         
+    except ValueError as ve:
+        log_event("Upload Module", f"Validation Error: {str(ve)}", "ERROR")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        print(f"Error: {e}")
-        log_event("Upload Module", f"Error: {str(e)}", "ERROR")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Internal Server Error: {e}\n{error_trace}")
+        log_event("Upload Module", f"System Error: {str(e)}", "ERROR")
+        raise HTTPException(status_code=500, detail="An internal server error occurred during processing.")

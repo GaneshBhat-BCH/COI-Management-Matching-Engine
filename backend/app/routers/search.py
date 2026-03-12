@@ -303,7 +303,12 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
             "email_body": email_html
         }
 
+    except ValueError as ve:
+        log_event("Search Module", f"Query Error: {str(ve)}", "ERROR")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        print(f"Search Error: {e}")
-        log_event("Search Module", f"Search Failed: {str(e)}", "ERROR")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Internal Search Error: {e}\n{error_trace}")
+        log_event("Search Module", f"System Error: {str(e)}", "ERROR")
+        raise HTTPException(status_code=500, detail="Search processing failed.")

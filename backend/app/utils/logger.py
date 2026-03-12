@@ -32,31 +32,22 @@ def cleanup_old_logs():
 def log_event(module: str, comment: str, status: str = "INFO"):
     """
     Logs an event to activity_log_YYYY-MM-DD.csv.
-    Format: [Time, Module run, Comment, Status]
-    Auto-deletes files older than 15 days.
+    Standardized format for forensic auditing.
     """
-    # 1. Determine Today's Log File
     current_date = datetime.now().strftime("%Y-%m-%d")
     log_file = Path(f"{LOG_PREFIX}{current_date}.csv")
     
     file_exists = log_file.exists()
     
     try:
-        # 2. Append to Log
         with open(log_file, mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            
-            # Write Header if new file
             if not file_exists:
                 writer.writerow(["Time", "Module run", "Comment", "Status"])
+                # Only cleanup when a new log file is created to save I/O
+                cleanup_old_logs()
             
-            # Write Row
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             writer.writerow([current_time, module, comment, status])
-            
-        # 3. Trigger Cleanup (Simple implementation: run every write)
-        # Verify overhead is negligible for <100 files
-        cleanup_old_logs()
-            
     except Exception as e:
         print(f"Logging Failed: {e}")

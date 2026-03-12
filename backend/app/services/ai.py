@@ -1,30 +1,22 @@
 from openai import AsyncAzureOpenAI
-import os
-import json
-from dotenv import load_dotenv
-from pathlib import Path
+from app.config import (
+    AZURE_OPENAI_API_KEY,
+    AZURE_OPENAI_ENDPOINT,
+    GPT_DEPLOYMENT,
+    EMBEDDING_DEPLOYMENT,
+    API_VERSION
+)
 from app.utils.logger import log_event
 
-# Load .env
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-# Configuration
-api_key = os.getenv("AZURE_OPENAI_API_KEY")
 # Handle potential full URL in env var
-raw_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-if "/openai" in raw_endpoint:
-    AOAI_ENDPOINT = raw_endpoint.split("/openai")[0]
+if AZURE_OPENAI_ENDPOINT and "/openai" in AZURE_OPENAI_ENDPOINT:
+    AOAI_ENDPOINT = AZURE_OPENAI_ENDPOINT.split("/openai")[0]
 else:
-    AOAI_ENDPOINT = raw_endpoint
-
-GPT_DEPLOYMENT = "gpt-5"
-EMBEDDING_DEPLOYMENT = "text-embedding-3-large"
-API_VERSION = "2025-01-01-preview"
+    AOAI_ENDPOINT = AZURE_OPENAI_ENDPOINT
 
 client = AsyncAzureOpenAI(
     azure_endpoint=AOAI_ENDPOINT,
-    api_key=api_key,
+    api_key=AZURE_OPENAI_API_KEY,
     api_version=API_VERSION
 )
 
