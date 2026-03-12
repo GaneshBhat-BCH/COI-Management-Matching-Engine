@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 TITLE COI Management Matching Engine - One-Click Launcher
 
@@ -12,13 +13,13 @@ echo.
 REM Check Python
 echo [1/5] Checking Python...
 where python >nul 2>&1
-if %errorlevel% equ 0 (
-    set PYTHON_CMD=python
+if !errorlevel! equ 0 (
+    set "PYTHON_CMD=python"
     goto :PYTHON_OK
 )
 where py >nul 2>&1
-if %errorlevel% equ 0 (
-    set PYTHON_CMD=py
+if !errorlevel! equ 0 (
+    set "PYTHON_CMD=py"
     goto :PYTHON_OK
 )
 
@@ -36,7 +37,7 @@ echo [2/5] Checking Virtual Environment...
 if not exist "backend\venv" (
     echo Creating virtual environment... Please wait...
     %PYTHON_CMD% -m venv backend\venv
-    if %errorlevel% neq 0 (
+    if !errorlevel! neq 0 (
         echo ERROR: Failed to create venv
         pause
         exit /b
@@ -53,7 +54,7 @@ echo Installing packages...
 call backend\venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 python -m pip install -r backend\requirements.txt
-if %errorlevel% neq 0 (
+if !errorlevel! neq 0 (
     echo ERROR: Failed to install packages
     pause
     exit /b
@@ -63,11 +64,10 @@ echo.
 
 REM Initialize database
 echo [4/5] Checking Database Initialization...
-cd backend
-call venv\Scripts\activate.bat
+pushd backend
 if exist "init_db.py" (
     echo Running database initialization...
-    python init_db.py
+    venv\Scripts\python.exe init_db.py
 )
 echo Database checks complete.
 echo.
@@ -81,19 +81,23 @@ echo Launching server...
 start /B venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 echo Waiting for server to start...
-set max_retries=30
-set retry_count=0
+set "max_retries=30"
+set "retry_count=0"
 
 :wait_loop
 timeout /t 2 /nobreak >nul
 curl -s http://localhost:8001/ >nul 2>&1
-if %errorlevel% equ 0 goto server_running
+if !errorlevel! equ 0 (
+    goto :server_running
+)
 
-set /a retry_count+=1
-if %retry_count% lss %max_retries% goto wait_loop
+set /a "retry_count+=1"
+if !retry_count! lss !max_retries! (
+    goto :wait_loop
+)
 
 echo ERROR: Server failed to start after 60 seconds.
-goto end_script
+goto :end_script
 
 :server_running
 echo.
@@ -108,5 +112,7 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8001 ^| findstr LISTENING') 
 echo Server stopped.
 
 :end_script
-cd ..
+popd
+echo.
+echo Setup finished.
 pause
