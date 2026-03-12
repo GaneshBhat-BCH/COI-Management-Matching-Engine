@@ -1,6 +1,6 @@
 import asyncio
 import os
-from database import database
+from app.database import database
 from pathlib import Path
 
 async def init_db():
