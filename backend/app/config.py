@@ -19,6 +19,10 @@ GPT_DEPLOYMENT = os.getenv("GPT_DEPLOYMENT", "gpt-5")
 EMBEDDING_DEPLOYMENT = os.getenv("EMBEDDING_DEPLOYMENT", "text-embedding-3-large")
 API_VERSION = os.getenv("API_VERSION", "2025-01-01-preview")
 
+# SharePoint Settings
+SHAREPOINT_ROOT_URL = os.getenv("SHAREPOINT_ROOT_URL", "https://bostonchildrenshospital.sharepoint.com/:f:/r/sites/OGCIntelligentAutomation/Legal%20Business%20Units/COI%20Management/COI%20Management%20Plans")
+SHAREPOINT_URL_PARAMS = os.getenv("SHAREPOINT_URL_PARAMS", "csf=1&web=1&e=Ivm2oM")
+
 # Database Settings
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")

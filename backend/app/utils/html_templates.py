@@ -1,3 +1,6 @@
+from app.config import SHAREPOINT_ROOT_URL, SHAREPOINT_URL_PARAMS
+import urllib.parse
+
 def generate_search_results_html(results, search_method):
     """
     Generates a professional HTML email body for search results.
@@ -15,7 +18,8 @@ def generate_search_results_html(results, search_method):
             .meta { background-color: #f5f5f5; padding: 10px 15px; margin-bottom: 20px; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
             .card { margin-bottom: 25px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
             .card-header { background-color: #e0f2f1; padding: 10px 15px; border-bottom: 1px solid #b2dfdb; display: flex; justify-content: space-between; align-items: center; }
-            .pdf-title { font-size: 1.1rem; font-weight: 700; color: #00695c; }
+            .pdf-title { font-size: 1.1rem; font-weight: 700; color: #00695c; text-decoration: none; }
+            .pdf-title:hover { text-decoration: underline; }
             .score-badge { background-color: #00796b; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9rem; }
             .card-body { padding: 15px; }
             .details-row { margin-bottom: 10px; font-size: 0.9rem; color: #555; }
@@ -40,16 +44,22 @@ def generate_search_results_html(results, search_method):
 
     for res in results:
         # Check if result is a placeholder
-        if res.get("pdf_name") == "No Data Found" or res.get("match_score") == "0%":
+        pdf_name = res.get("pdf_name", "Unknown File")
+        if pdf_name == "No Data Found" or res.get("match_score") == "0%":
              continue
 
         formatted_score = res.get("match_score", "0%")
         weight_details = res.get("weightage_details", "N/A")
         
+        # Construct SharePoint URL
+        # We handle encoding for spaces and special characters in the filename path
+        encoded_path = urllib.parse.quote(pdf_name)
+        sharepoint_url = f"{SHAREPOINT_ROOT_URL}/{encoded_path}?{SHAREPOINT_URL_PARAMS}"
+        
         card_html = f"""
             <div class="card">
                 <div class="card-header">
-                    <span class="pdf-title">📄 {res.get('pdf_name')}</span>
+                    <a href="{sharepoint_url}" class="pdf-title" target="_blank">📄 {pdf_name}</a>
                     <span class="score-badge">Match: {formatted_score}</span>
                 </div>
                 <div class="card-body">
@@ -60,11 +70,11 @@ def generate_search_results_html(results, search_method):
                     <table>
                         <thead>
                             <tr>
-                                <th style="width: 35%;">Question</th>
+                                <th style="width: 30%;">Question</th>
                                 <th style="width: 20%;">User Input</th>
                                 <th style="width: 20%;">PDF Data</th>
                                 <th style="width: 15%;">Status</th>
-                                <th style="width: 10%;">Weight/Score</th>
+                                <th style="width: 15%;">Weight/Score</th>
                             </tr>
                         </thead>
                         <tbody>
