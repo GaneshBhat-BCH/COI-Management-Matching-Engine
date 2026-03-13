@@ -23,9 +23,9 @@ def generate_search_results_html(results, search_method):
             .score-badge { background-color: #00796b; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9rem; }
             .card-body { padding: 15px; }
             .details-row { margin-bottom: 10px; font-size: 0.9rem; color: #555; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; table-layout: fixed; border-spacing: 0; }
             th { background-color: #fafafa; border-bottom: 2px solid #ddd; padding: 8px; text-align: left; font-weight: 600; color: #444; }
-            td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+            td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; word-wrap: break-word; word-break: break-all; overflow-wrap: break-word; }
             .match-row { background-color: #f1f8e9; }
             .mismatch-row { background-color: #fffde7; }
             .notfound-row { background-color: #ffebee; }
