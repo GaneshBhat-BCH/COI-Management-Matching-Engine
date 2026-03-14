@@ -1,4 +1,5 @@
 from openai import AsyncAzureOpenAI
+import json
 from app.config import (
     AZURE_OPENAI_API_KEY,
     AZURE_OPENAI_ENDPOINT,

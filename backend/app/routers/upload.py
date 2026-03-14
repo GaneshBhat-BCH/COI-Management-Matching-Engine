@@ -6,6 +6,7 @@ from app.utils.chunking import chunk_text
 from app.utils.logger import log_event
 from pydantic import BaseModel
 import uuid
+import json
 
 router = APIRouter()
 
@@ -139,7 +140,6 @@ async def upload_file(
         }
 
         # 8. Update Result Body in DB
-        import json
         result_body_json = json.dumps(response_data, default=str, ensure_ascii=False)
         query_update_result = """
         UPDATE coi_mgmt.pdf_documents
