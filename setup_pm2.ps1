@@ -52,8 +52,26 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "Failed to start application via PM2." -ForegroundColor Red
 }
 
-# 4. Save PM2 list for persistence (if pm2-windows-startup is configured)
-pm2 save
+# 4. Persistence (Stay alive after logout / boot)
+Write-Host "4. Configuring PM2 persistence for Windows..." -ForegroundColor Yellow
+
+# Use pm2-windows-startup for reliable persistence
+if (!(Get-Command pm2-startup -ErrorAction SilentlyContinue)) {
+    Write-Host "pm2-windows-startup not found. Installing globally..." -ForegroundColor Magenta
+    npm install pm2-windows-startup -g
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: Failed to install pm2-windows-startup. Persistence might not work." -ForegroundColor Red
+    }
+}
+
+try {
+    # This registers the current PM2 process list to start with Windows
+    pm2-startup install
+    pm2 save
+    Write-Host "Persistence configured. Application will now stay alive after logout and auto-start on boot." -ForegroundColor Green
+} catch {
+    Write-Host "Failed to configure persistence. Ensure you are running as Administrator." -ForegroundColor Red
+}
 
 Write-Host "--- Setup Complete ---" -ForegroundColor Cyan
 Write-Host "To monitor logs, run: pm2 logs $APP_NAME"

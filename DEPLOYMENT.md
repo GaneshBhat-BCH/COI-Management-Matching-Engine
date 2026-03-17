@@ -29,7 +29,14 @@ The script will:
 - **Stop**: `pm2 stop COI-Management-Matching-Engine`
 - **Delete**: `pm2 delete COI-Management-Matching-Engine`
 
-## Persistence (Startup on Boot)
-To ensure the application starts automatically when the VM reboots:
-1. Install `pm2-windows-startup` or `pm2-windows-service`.
-2. Run `pm2 save` after starting the application to save the process list.
+## Persistence (Stay alive after logout / boot)
+The `setup_pm2.ps1` script automatically configures persistence using `pm2-windows-startup`. This ensures:
+1. The application stays alive even after you close the VM user session/logout.
+2. The application automatically starts when the VM reboots.
+
+**Note**: You must run the setup script as **Administrator** for persistence configuration to succeed.
+
+To manually save the current process list at any time, run:
+```powershell
+pm2 save
+```
