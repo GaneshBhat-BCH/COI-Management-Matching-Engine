@@ -28,6 +28,11 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
              # Flexible key access
              q = item.get("question_text") or item.get("question") or item.get("text") or ""
              a = item.get("answer_text") or item.get("answer") or ""
+             
+             # NEW Logic: Skip NA/Blank in query text to improve retrieval focus
+             if a.upper().strip() in ["NA", "N/A", ""] or not a.strip():
+                 continue
+                 
              query_text += f" {q} {a} " # Space separated for keywords
              
         if not query_text.strip():
@@ -69,6 +74,12 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                     if not q_id or q_id == "None":
                          q_id = QUESTION_TEXT_TO_ID.get(q_text.lower().strip(), "")
                     
+                    user_ref = item.get("answer_text") or item.get("answer") or ""
+
+                    # NEW Logic: If user query is NA or empty, exclude from weighting and matching
+                    if user_ref.upper().strip() in ["NA", "N/A", ""] or not user_ref.strip():
+                        continue
+
                     # Determine Weight
                     weight = HIGH_WEIGHT_VAL if q_id in HIGH_WEIGHT_IDS else NORMAL_WEIGHT_VAL
                     total_possible_weight += weight
