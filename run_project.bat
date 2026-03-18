@@ -7,14 +7,17 @@ echo ====================================================
 echo      COI MANAGEMENT MATCHING ENGINE
 echo ====================================================
 echo.
+
+REM Start server
+echo [5/5] Starting Server...
+pushd backend
+
 echo Cleaning up port 8001...
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8001 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 
-echo Launching server via PM2...
-pm2 start ecosystem.config.js
-pm2 save
+echo Launching server...
+start /B venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
-echo.
 echo Waiting for server to start...
 set "max_retries=30"
 set "retry_count=0"
@@ -32,7 +35,7 @@ if !retry_count! lss !max_retries! (
 )
 
 echo ERROR: Server failed to start after 60 seconds.
-powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server failed to start after 60 seconds! Please check PM2 logs for errors.', 'Critical', 'ERROR')}"
+powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server failed to start after 60 seconds! Please check the terminal for errors.', 'Critical', 'ERROR')}"
 goto :end_script
 
 :server_running
@@ -42,9 +45,15 @@ echo      SERVER IS RUNNING!
 echo      http://localhost:8001/
 echo ====================================================
 echo.
-powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server is UP and RUNNING!\n\nAPI: http://localhost:8001/\n\nClick OK to continue', 'Information', 'SUCCESS')}"
+powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::MsgBox('Server is UP and RUNNING!\n\nAPI: http://localhost:8001/\n\nClick OK to keep running', 'Information', 'SUCCESS')}"
+echo.
+echo Press any key to STOP the server...
+pause >nul
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8001 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+echo Server stopped.
 
 :end_script
+popd
 echo.
-echo Done.
+echo Setup finished.
 pause
