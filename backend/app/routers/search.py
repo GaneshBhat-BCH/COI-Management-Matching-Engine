@@ -46,8 +46,8 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
             processed_candidates = []
             
             # Weighted Scoring Configuration
-            # Q1 (Cofounder), Q13 (Policy), Q14 (Rule), Q15 (Exemption) → High Weight
-            HIGH_WEIGHT_IDS = {"1", "13", "14", "15"}
+            # Q1 (Cofounder), Q2 (Role), Q13 (Policy), Q14 (Rule), Q15 (Exemption) → High Weight
+            HIGH_WEIGHT_IDS = {"1", "2", "13", "14", "15"}
             HIGH_WEIGHT_VAL = 3.0
             NORMAL_WEIGHT_VAL = 1.0
             THRESHOLD_PERCENT = 0.80  # 80% match requirement
@@ -182,14 +182,18 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
         # 2. STEP 1: PURE KEYWORD SEARCH (No Model Cost)
         log_event("Search Module", "Attempting Keyword-First search...", "PROGRESS")
         
+        # Check for AI-preferred questions (2, 4, 14) to force vector search later
+        AI_DYNAMIC_IDS = {"2", "4", "14"}
+        has_dynamic_q = any(
+            str(item.get("question_id", "")) in AI_DYNAMIC_IDS 
+            for item in request.questions_answers 
+            if (item.get("answer_text") or item.get("answer") or "").upper().strip() not in ["NA", "N/A", ""]
+        )
+
         # Construct OR-based TSQuery (match ANY term) to avoid strict AND failure
-        # e.g. "Researcher Role Company" -> "Researcher | Role | Company"
         import re
         clean_tokens = re.findall(r'\w+', query_text)
-        if clean_tokens:
-            query_or = " | ".join(clean_tokens)
-        else:
-            query_or = query_text # Fallback
+        query_or = " | ".join(clean_tokens) if clean_tokens else query_text
 
         keyword_search_query = """
         SELECT pdf.file_name, pdf.pdf_id, 0 as max_sim, MAX(ts_rank(c.search_vector, to_tsquery('english', :query_or))) as max_rank
@@ -218,11 +222,15 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
         candidates = await get_verified_candidates(results_kw, source_label="SQL Keyword")
         search_method = "SQL Keyword (Free)"
 
-        # 3. STEP 2: FALLBACK TO VECTOR SEARCH
-        # Fallback if verified keyword matches represent FEWER THAN 3 unique PDFs
-        if len(candidates) < 3:
-            log_event("Search Module", f"Keyword search found only {len(candidates)} verified PDFs. Augmenting with Vectorization...", "PROGRESS")
-            search_method = "Hybrid (Keyword + Vector Fallback)"
+        # 3. STEP 2: FALLBACK OR FORCED VECTOR SEARCH
+        # Trigger Vector Search if fewer than 3 candidates found OR if dynamic questions are involved
+        if len(candidates) < 3 or has_dynamic_q:
+            if has_dynamic_q:
+                log_event("Search Module", "High-impact questions detected (2, 4, 14). Forcing AI Vector Search for semantic accuracy.", "PROGRESS")
+            else:
+                log_event("Search Module", f"Keyword search found only {len(candidates)} verified PDFs. Augmenting with Vectorization...", "PROGRESS")
+            
+            search_method = "Hybrid (Keyword + Vector)"
             query_embedding = await get_embeddings(query_text)
             embedding_str = str(query_embedding)
             
@@ -242,7 +250,7 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
             results_vec = await db.fetch_all(search_query_vec, values={"embedding": embedding_str, "query_text": query_text})
             
             # Identify which PDFs we already found via keyword to avoid redundant verification
-            existing_pdf_ids = {str(c["pdf_id"]) for c in candidates} # Note: I'll add pdf_id to candidates below
+            existing_pdf_ids = {str(c["pdf_id"]) for c in candidates}
             
             # Filter results_vec to only new PDFs
             new_results_vec = [r for r in results_vec if str(r["pdf_id"]) not in existing_pdf_ids]

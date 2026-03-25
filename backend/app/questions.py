@@ -38,7 +38,7 @@ QUESTIONS_DATA = {
       {
         "id": 4,
         "text": "What is the researcher’s equity in the company?",
-        "prompt": "Extract the data from the input and identify the researcher’s equity in the company. Normalize to Cash,Stock,StockOptions. If multiple, return Ans1,Ans2. If not mentioned, return NA."
+        "prompt": "Extract the data from the input and identify the researcher’s equity in the company. Normalize to Equity, Stock, StockOptions. If multiple options exist, return them as a comma-separated list (e.g., Equity,Stock). If not mentioned, return NA."
       },
       {
         "id": 5,
@@ -90,7 +90,7 @@ QUESTIONS_DATA = {
       {
         "id": 14,
         "text": "What COI rule applies to this management plan?",
-        "prompt": "Perform a DEEP RULE-BY-RULE ANALYSIS. 1. If Question 13 is 'NA', return 'NA'. 2. Retrieve the Policy Name from Question 13 and look it up in REFERENCE_POLICIES. 3. Evaluate ALL Rules provided under that Policy. 4. Select the SINGLE Rule that has the exact matched conditions without any partial match. 5. Output ONLY the EXACT value of the 'Name' field from the matched rule object in REFERENCE_POLICIES. Do NOT return multiple rules. Do NOT return lists. If the Policy is a single object (not a list), return its Name from rule section."
+        "prompt": "Perform a DEEP RULE-BY-RULE ANALYSIS. 1. If Question 13 is 'NA', return 'NA'. 2. Retrieve the Policy Name from Question 13 and look it up in REFERENCE_POLICIES. 3. Evaluate ALL Rules provided under that Policy. 4. Select ALL Rules that have the exact matched conditions without any partial match. 5. Output the EXACT value(s) of the 'Name' field from the matched rule(s). If multiple rules match, return them as a comma-separated list (e.g., Rule1,Rule2). If the Policy is a single object (not a list), return its Name from rule section."
       },
       {
         "id": 15,
