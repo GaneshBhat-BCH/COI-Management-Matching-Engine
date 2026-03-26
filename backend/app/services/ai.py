@@ -80,6 +80,7 @@ async def ocr_document_visual(base64_images: list[str]) -> str:
         except Exception as e:
             # If one page fails due to filtering, we log it and keep the others
             error_msg = str(e)
+            print(f"DEBUG: OCR Page {i+1} Exception: {error_msg}")
             if "content_filter" in error_msg or "400" in error_msg:
                 log_event("AI Service", f"Page {i+1} was filtered by Azure Safety. Skipping...", "WARNING")
             else:
