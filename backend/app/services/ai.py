@@ -267,8 +267,64 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
         log_event("AI Service", f"Response received from GPT-5. Usage: {usage.total_tokens}", "SUCCESS")
              
         data = json.loads(content)
+        answers = data.get("answers", [])
+        
+        # --- NEW: Double-Check Logic for Questions 13 and 14 ---
+        # If any of these critical questions are 'NA', try one more time with a more persistent prompt.
+        retry_ids = [13, 14]
+        needs_retry = [q for q in answers if q.get("question_id") in retry_ids and q.get("answer_text", "").upper() in ["NA", "N/A", ""]]
+        
+        if needs_retry:
+            log_event("AI Service", f"Triggering double-check for questions: {[q.get('question_id') for q in needs_retry]}", "PROGRESS")
+            retry_questions = [q for q in questions_list if q.get("id") in [r.get("question_id") for r in needs_retry]]
+            
+            retry_prompt = f"""
+            {system_role}
+            CRITICAL DOUBLE-CHECK: The first pass failed to find the following information. 
+            Analyze the document text AGAIN with extreme care. 
+            For Question 13, look for policy names like 'HMS', 'PHS', 'BCH' or 'Inventor' in the headers or footers.
+            For Question 14, look for specific rule titles or sections.
+            
+            DOCUMENT CONTENT:
+            {masked_text}
+            
+            GLOBAL INSTRUCTIONS:
+            {json.dumps(global_instr, indent=2)}
+
+            REFERENCE POLICIES:
+            {json.dumps(ref_policies, indent=2)}
+
+            RETRY QUESTIONS:
+            {json.dumps(retry_questions, indent=2)}
+
+            OUTPUT FORMAT (JSON):
+            {{ "answers": [ {{ "question_id": <int>, "answer_text": "<extracted detail>" }}, ... ] }}
+            """
+            
+            try:
+                retry_resp = await client.chat.completions.create(
+                    model=GPT_DEPLOYMENT,
+                    messages=[
+                        {"role": "system", "content": "You are a senior legal auditor performing a final verification. Be persistent and thorough."},
+                        {"role": "user", "content": retry_prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                retry_data = json.loads(retry_resp.choices[0].message.content)
+                retry_answers = retry_data.get("answers", [])
+                
+                # Update original answers with retry results if they are NOT 'NA'
+                for r_ans in retry_answers:
+                    if r_ans.get("answer_text", "").upper() not in ["NA", "N/A", ""]:
+                        for orig in answers:
+                            if orig.get("question_id") == r_ans.get("question_id"):
+                                orig["answer_text"] = r_ans["answer_text"]
+                                log_event("AI Service", f"Double-check FOUND data for Q{orig.get('question_id')}", "SUCCESS")
+            except Exception as re:
+                print(f"Retry pass failed: {re}")
+
         return {
-            "answers": data.get("answers", []),
+            "answers": answers,
             "usage": usage_data
         }
     except Exception as e:
