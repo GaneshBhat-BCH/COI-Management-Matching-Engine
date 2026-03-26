@@ -7,3 +7,6 @@ openai
 python-multipart
 httpx
 tiktoken
+msal
+pymupdf
+python-docx
