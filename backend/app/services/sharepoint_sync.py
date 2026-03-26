@@ -204,21 +204,36 @@ async def sync_sharepoint():
                     with open(temp_path, "wb") as f:
                         f.write(file_content_resp.content)
                     
-                    # 3. AI Analysis (2-Pass Guardrail Strategy for PDF)
+                    # 3. AI Analysis (Hybrid Strategy: Text First -> Visual OCR Fallback)
                     input_body = ""
                     if file_ext == ".pdf":
-                        print(f"Using 2-Pass Guardrail Strategy for {display_file_name}...")
-                        base64_imgs = pdf_to_base64_images(temp_path)
+                        # Try Local Text Extraction First (Faster, avoids Vision content filters)
+                        local_text = extract_text(temp_path)
                         
-                        # Pass 1: Raw OCR (Bypasses 'jailbreak' content filter)
-                        raw_ocr_text = await ocr_document_visual(base64_imgs)
-                        if not raw_ocr_text:
-                            print(f"FAILED to extract raw text via OCR for {display_file_name}")
-                            continue
-                        
-                        # Pass 2: Masked Structured Extraction (using existing text-based AI service)
-                        ai_result = await analyze_document_and_answer(raw_ocr_text, QUESTIONS_DATA)
-                        input_body = f"[2-Pass Guardrail Input: {min(len(base64_imgs), 8)} pages OCRed and analyzed]"
+                        if local_text and len(local_text.strip()) > 200:
+                            print(f"Using High-Fidelity Text Extraction for {display_file_name}...")
+                            input_body = local_text
+                            ai_result = await analyze_document_and_answer(local_text, QUESTIONS_DATA)
+                        else:
+                            # Scanned PDF or blurry - Fallback to Multimodal Vision/OCR
+                            print(f"Local extraction insufficient. Falling back to 2-Pass Guardrail (Vision) for {display_file_name}...")
+                            base64_imgs = pdf_to_base64_images(temp_path)
+                            
+                            # Pass 1: Raw OCR (Stealth One-Page-at-a-Time)
+                            raw_ocr_text = await ocr_document_visual(base64_imgs)
+                            
+                            if raw_ocr_text:
+                                input_body = f"[Hybrid Input: OCRed {len(base64_imgs)} pages]"
+                                ai_result = await analyze_document_and_answer(raw_ocr_text, QUESTIONS_DATA)
+                            else:
+                                # Final Fallback: use whatever text we got from local extraction if it exists
+                                if local_text:
+                                    print(f"OCR Failed. Using partial local text as final fallback for {display_file_name}")
+                                    input_body = local_text
+                                    ai_result = await analyze_document_and_answer(local_text, QUESTIONS_DATA)
+                                else:
+                                    print(f"ABORTED: All extraction methods failed for {display_file_name}")
+                                    continue
                     else:
                         extracted_text = extract_text(temp_path)
                         if not extracted_text:
