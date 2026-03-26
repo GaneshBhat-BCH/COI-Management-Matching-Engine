@@ -330,4 +330,4 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
         error_trace = traceback.format_exc()
         print(f"Internal Search Error: {e}\n{error_trace}")
         log_event("Search Module", f"System Error: {str(e)}", "ERROR")
-        raise HTTPException(status_code=500, detail="Search processing failed.")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
