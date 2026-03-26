@@ -23,15 +23,15 @@ async def upload_file(
     request: Optional[UploadRequest] = None,
     db = Depends(get_db)
 ):
-    # Case 1: Trigger SharePoint Sync (No body provided)
-    if not request:
-        log_event("Sync Module", "Automatic SharePoint sync triggered via /api/upload", "START")
-        processed_files = await sync_sharepoint()
-        return {"processed_files": processed_files}
-
-    # Case 2: Manual Upload (Existing logic)
-    log_event("Upload Module", "Manual upload request received", "START")
     try:
+        # Case 1: Trigger SharePoint Sync (No body provided)
+        if not request:
+            log_event("Sync Module", "Automatic SharePoint sync triggered via /api/upload", "START")
+            processed_files = await sync_sharepoint()
+            return {"processed_files": processed_files}
+
+        # Case 2: Manual Upload (Existing logic)
+        log_event("Upload Module", "Manual upload request received", "START")
         # 1. Insert into DB (pdf_documents)
         # Using "text-input" as placeholder for file_path since we don't save to disk
         # Capture Raw Input Body
