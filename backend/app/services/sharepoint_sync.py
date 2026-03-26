@@ -43,10 +43,41 @@ async def get_access_token():
         result = app.acquire_token_for_client(scopes=scope)
     return result.get("access_token")
 
+async def check_schema(db: Database):
+    """Ensures all required columns exist in the database."""
+    print("Checking database schema...")
+    try:
+        # Check for columns in pdf_documents
+        cols_query = """
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'coi_mgmt' AND table_name = 'pdf_documents'
+        """
+        existing_cols = [r["column_name"] for r in await db.fetch_all(cols_query)]
+        
+        required_cols = {
+            "input_body": "TEXT",
+            "modified_at": "TIMESTAMP",
+            "doc_date": "TEXT",
+            "docusign_id": "TEXT",
+            "from_user": "TEXT"
+        }
+        
+        for col, col_type in required_cols.items():
+            if col not in existing_cols:
+                print(f"Migration: Adding column '{col}' to coi_mgmt.pdf_documents...")
+                await db.execute(f"ALTER TABLE coi_mgmt.pdf_documents ADD COLUMN {col} {col_type}")
+                
+    except Exception as e:
+        print(f"Schema check warning: {e}")
+
 async def sync_sharepoint():
     log_event("SharePoint Sync", "Starting sync process", "START")
     db = Database(DATABASE_URL)
     await db.connect()
+    
+    # Run Schema Verification
+    await check_schema(db)
     
     processed_files = [] # Track actually processed (inserted/updated) files
     
