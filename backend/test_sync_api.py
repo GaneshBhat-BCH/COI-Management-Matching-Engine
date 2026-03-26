@@ -41,6 +41,18 @@ def test_sync():
         print("Please ensure the FastAPI server is running (usually via 'npm run dev' or 'uvicorn app.main:app --port 8001').")
     except Exception as e:
         print(f"CRITICAL ERROR: {str(e)}")
+    
+    # NEW: Run diagnostics if failed
+    print("\n--- RUNNING DIAGNOSTICS ---")
+    try:
+        debug_url = API_URL.replace("/upload", "/debug")
+        debug_resp = requests.get(debug_url)
+        if debug_resp.status_code == 200:
+            print(f"Server Debug Data: {json.dumps(debug_resp.json(), indent=2)}")
+        else:
+            print(f"Debug Endpoint Failed: {debug_resp.status_code}")
+    except:
+        print("Could not reach debug endpoint.")
 
 if __name__ == "__main__":
     test_sync()
