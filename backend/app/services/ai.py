@@ -46,6 +46,45 @@ async def get_embeddings(input_data: str | list[str]):
 
 from app.utils.masking import mask_text
 
+async def ocr_document_visual(base64_images: list[str]) -> str:
+    """
+    Performs raw OCR of a document using images of its pages.
+    Minimalist prompt to avoid triggering Azure Content Safety jailbreak filters.
+    """
+    log_event("AI Service", f"Constructing raw OCR prompt for {len(base64_images)} pages", "START")
+    
+    content = [
+        {
+            "type": "text",
+            "text": "Please perform OCR on these images. Return the raw text exactly as it appears in the document. Do not provide any analysis, summary, or formatting other than the text itself."
+        }
+    ]
+    
+    for b64 in base64_images[:8]: 
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{b64}",
+                "detail": "auto"
+            }
+        })
+    
+    try:
+        response = await client.chat.completions.create(
+            model=GPT_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": "You are a specialized OCR engine. Your only task is to extract text from images exactly as written."},
+                {"role": "user", "content": content}
+            ]
+        )
+        
+        raw_text = response.choices[0].message.content
+        log_event("AI Service", "Raw OCR extraction successful", "SUCCESS")
+        return raw_text
+    except Exception as e:
+        log_event("AI Service", f"Raw OCR failed: {str(e)}", "ERROR")
+        return ""
+
 async def analyze_document_visual(base64_images: list[str], questions_config: dict | list) -> dict:
     """
     Performs multimodal analysis of a document using images of its pages.
