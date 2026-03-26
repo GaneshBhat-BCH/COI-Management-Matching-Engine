@@ -221,31 +221,25 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
         system_role = "You are a forensic document auditor."
 
     prompt = f"""
-    {system_role}
-    Your goal is to extract specific details from the document text provided below.
-    Note: Some medical or sensitive words in the document text have been masked (e.g. C*ncer, De*th) to ensure system compatibility. Please interpret them correctly and provide the regular unmasked word in your answer output.
+    The following is a document text from a COI Management Plan. 
+    Please extract the specific details requested in the questions below. 
+    If a value is not found, return 'NA'.
     
     DOCUMENT CONTENT:
     ~~~~~~~~~~~~~~~~~
     {masked_text}
     ~~~~~~~~~~~~~~~~~
     
-    YOUR TASK:
-    Answer the following questions based on the document text.
+    QUESTIONS AND EXTRACTION PROMPTS:
+    {json.dumps(questions_list, indent=2)}
     
     GLOBAL INSTRUCTIONS:
     {json.dumps(global_instr, indent=2)}
 
-    REFERENCE POLICIES:
-    {json.dumps(ref_policies, indent=2)}
-
-    QUESTIONS AND EXTRACTION PROMPTS:
-    {json.dumps(questions_list, indent=2)}
-
     OUTPUT FORMAT (JSON):
     {{
         "answers": [
-            {{ "question_id": <int>, "question_text": "<str>", "answer_text": "<extracted detail or inference>" }},
+            {{ "question_id": <int>, "question_text": "<str>", "answer_text": "<extracted detail>" }},
             ...
         ]
     }}
@@ -257,7 +251,7 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
         response = await client.chat.completions.create(
             model=GPT_DEPLOYMENT,
             messages=[
-                {"role": "system", "content": system_role},
+                {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
@@ -287,20 +281,15 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
             retry_questions = [q for q in questions_list if q.get("id") in [r.get("question_id") for r in needs_retry]]
             
             retry_prompt = f"""
-            {system_role}
-            CRITICAL DOUBLE-CHECK: The first pass failed to find the following information. 
-            Analyze the document text AGAIN with extreme care. 
-            For Question 13, look for policy names like 'HMS', 'PHS', 'BCH' or 'Inventor' in the headers or footers.
-            For Question 14, look for specific rule titles or sections.
+            The initial extraction for the following fields was inconclusive. 
+            Please perform a secondary review of the document text to verify if any values were missed.
+            Focus specifically on policy names (Q13) and rule titles (Q14).
             
             DOCUMENT CONTENT:
             {masked_text}
             
             GLOBAL INSTRUCTIONS:
             {json.dumps(global_instr, indent=2)}
-
-            REFERENCE POLICIES:
-            {json.dumps(ref_policies, indent=2)}
 
             RETRY QUESTIONS:
             {json.dumps(retry_questions, indent=2)}
@@ -313,7 +302,7 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
                 retry_resp = await client.chat.completions.create(
                     model=GPT_DEPLOYMENT,
                     messages=[
-                        {"role": "system", "content": "You are a senior legal auditor performing a final verification. Be persistent and thorough."},
+                        {"role": "system", "content": "You are a helpful assistant."},
                         {"role": "user", "content": retry_prompt}
                     ],
                     response_format={"type": "json_object"}
