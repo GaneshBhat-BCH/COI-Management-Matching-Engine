@@ -48,42 +48,50 @@ from app.utils.masking import mask_text
 
 async def ocr_document_visual(base64_images: list[str]) -> str:
     """
-    Performs raw OCR of a document using images of its pages.
-    Minimalist prompt to avoid triggering Azure Content Safety jailbreak filters.
+    Performs raw OCR of a document by processing each page individually.
+    Splitting into single pages drastically reduces 'jailbreak' filter triggers
+    on complex legal/medical documents.
     """
-    log_event("AI Service", f"Constructing raw OCR prompt for {len(base64_images)} pages", "START")
+    log_event("AI Service", f"Starting sequential OCR for {len(base64_images)} pages", "START")
     
-    content = [
-        {
-            "type": "text",
-            "text": "Please perform OCR on these images. Return the raw text exactly as it appears in the document. Do not provide any analysis, summary, or formatting other than the text itself."
-        }
-    ]
+    all_extracted_text = []
+    # Limit to 10 pages for cost/performance, or use all if needed
+    pages_to_process = base64_images[:10] 
     
-    for b64 in base64_images[:8]: 
-        content.append({
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/png;base64,{b64}",
-                "detail": "auto"
-            }
-        })
-    
-    try:
-        response = await client.chat.completions.create(
-            model=GPT_DEPLOYMENT,
-            messages=[
-                {"role": "system", "content": "You are a specialized OCR engine. Your only task is to extract text from images exactly as written."},
-                {"role": "user", "content": content}
-            ]
-        )
+    for i, b64 in enumerate(pages_to_process):
+        log_event("AI Service", f"OCRing Page {i+1}/{len(pages_to_process)}", "PROGRESS")
         
-        raw_text = response.choices[0].message.content
-        log_event("AI Service", "Raw OCR extraction successful", "SUCCESS")
-        return raw_text
-    except Exception as e:
-        log_event("AI Service", f"Raw OCR failed: {str(e)}", "ERROR")
+        try:
+            response = await client.chat.completions.create(
+                model=GPT_DEPLOYMENT,
+                messages=[
+                    {"role": "system", "content": "You are a neutral transcription assistant. Your only task is to provide a literal transcription of the text in the image."},
+                    {"role": "user", "content": [
+                        {"type": "text", "text": "Transcribe the text from this document page exactly as written."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "auto"}}
+                    ]}
+                ],
+                max_tokens=2000
+            )
+            
+            page_text = response.choices[0].message.content
+            if page_text:
+                all_extracted_text.append(f"--- PAGE {i+1} ---\n{page_text}")
+        except Exception as e:
+            # If one page fails due to filtering, we log it and keep the others
+            error_msg = str(e)
+            if "content_filter" in error_msg or "400" in error_msg:
+                log_event("AI Service", f"Page {i+1} was filtered by Azure Safety. Skipping...", "WARNING")
+            else:
+                log_event("AI Service", f"Page {i+1} OCR Error: {error_msg}", "ERROR")
+    
+    if not all_extracted_text:
+        log_event("AI Service", "OCR failed for ALL pages", "ERROR")
         return ""
+        
+    combined_text = "\n\n".join(all_extracted_text)
+    log_event("AI Service", f"OCR complete. Combined {len(all_extracted_text)} pages.", "SUCCESS")
+    return combined_text
 
 async def analyze_document_visual(base64_images: list[str], questions_config: dict | list) -> dict:
     """
