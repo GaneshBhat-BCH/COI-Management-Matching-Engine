@@ -70,8 +70,7 @@ async def ocr_document_visual(base64_images: list[str]) -> str:
                         {"type": "text", "text": "Transcribe the text from this document page exactly as written."},
                         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "auto"}}
                     ]}
-                ],
-                max_tokens=2000
+                ]
             )
             
             page_text = response.choices[0].message.content
