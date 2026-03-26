@@ -44,8 +44,112 @@ async def get_embeddings(input_data: str | list[str]):
     else:
         return [item.embedding for item in response.data]
 
+from app.utils.masking import mask_text
+
+async def analyze_document_visual(base64_images: list[str], questions_config: dict | list) -> dict:
+    """
+    Performs multimodal analysis of a document using images of its pages.
+    """
+    log_event("AI Service", f"Constructing visual prompt for {len(base64_images)} pages", "START")
+    
+    # Handle config (same as text-based)
+    if isinstance(questions_config, dict) and "QUESTIONS_DATA" in questions_config:
+        root_data = questions_config["QUESTIONS_DATA"]
+        questions_list = root_data.get("QUESTIONS", [])
+        global_instr = root_data.get("global_instructions", {})
+        ref_policies = root_data.get("REFERENCE_POLICIES", {})
+        system_role = questions_config.get("role", "You are a forensic document auditor.")
+    elif isinstance(questions_config, list):
+        questions_list = questions_config
+        global_instr = {}
+        ref_policies = {}
+        system_role = "You are a forensic document auditor."
+    else:
+        questions_list = questions_config.get("QUESTIONS", [])
+        global_instr = questions_config.get("global_instructions", {})
+        ref_policies = questions_config.get("REFERENCE_POLICIES", questions_config)
+        system_role = "You are a forensic document auditor."
+
+    # Construct the user message with images
+    content = [
+        {
+            "type": "text",
+            "text": f"""
+            {system_role}
+            Your goal is to extract specific details from the images of the document pages provided.
+            Analyze EVERY page carefully. The document is a Conflict of Interest (COI) Management Plan.
+            
+            YOUR TASK:
+            Answer the following questions based on the document content in the images.
+            Do NOT return 'NA' unless you have searched all 15 pages and the information is truly not there.
+            If the text is blurry, do your best to squint and infer the correct value.
+            
+            GLOBAL INSTRUCTIONS:
+            {json.dumps(global_instr, indent=2)}
+
+            REFERENCE POLICIES:
+            {json.dumps(ref_policies, indent=2)}
+
+            QUESTIONS AND EXTRACTION PROMPTS:
+            {json.dumps(questions_list, indent=2)}
+
+            OUTPUT FORMAT (JSON):
+            {{
+                "answers": [
+                    {{ "question_id": <int>, "question_text": "<str>", "answer_text": "<extracted detail or inference>" }},
+                    ...
+                ]
+            }}
+            """
+        }
+    ]
+    
+    # Add images (limit to 8 pages for best performance)
+    for b64 in base64_images[:8]: 
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{b64}",
+                "detail": "auto" # Auto detail for faster processing
+            }
+        })
+    
+    log_event("AI Service", "Visual Analysis request sending to GPT-5", "PENDING")
+    
+    try:
+        response = await client.chat.completions.create(
+            model=GPT_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": system_role},
+                {"role": "user", "content": content}
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        resp_content = response.choices[0].message.content
+        usage = response.usage
+        
+        log_event("AI Service", f"Visual Response received. Usage: {usage.total_tokens}", "SUCCESS")
+             
+        data = json.loads(resp_content)
+        return {
+            "answers": data.get("answers", []),
+            "usage": {
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens
+            }
+        }
+    except Exception as e:
+        log_event("AI Service", f"Visual Analysis failed: {str(e)}", "ERROR")
+        print(f"AI VISUAL ERROR: {e}")
+        return {"answers": [], "usage": {}}
+
 async def analyze_document_and_answer(text_content: str, questions_config: dict | list) -> dict:
-    log_event("AI Service", "constructing prompt", "START")
+    log_event("AI Service", "masking document content", "START")
+    masked_text = mask_text(text_content)
+    
+    log_event("AI Service", "constructing prompt", "PROGRESS")
     
     # Handle backward compatibility or list input
     # Handle new nested structure (QUESTIONS_DATA top level)
@@ -72,10 +176,11 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
     prompt = f"""
     {system_role}
     Your goal is to extract specific details from the document text provided below.
+    Note: Some medical or sensitive words in the document text have been masked (e.g. C*ncer, De*th) to ensure system compatibility. Please interpret them correctly and provide the regular unmasked word in your answer output.
     
     DOCUMENT CONTENT:
     ~~~~~~~~~~~~~~~~~
-    {text_content}
+    {masked_text}
     ~~~~~~~~~~~~~~~~~
     
     YOUR TASK:

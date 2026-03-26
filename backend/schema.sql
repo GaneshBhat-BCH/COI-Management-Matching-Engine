@@ -7,6 +7,10 @@ CREATE TABLE IF NOT EXISTS coi_mgmt.pdf_documents (
     file_path TEXT NOT NULL,
     input_body TEXT,
     result_body TEXT,
+    modified_at TIMESTAMP,
+    doc_date TEXT,
+    docusign_id TEXT,
+    from_user TEXT,
     uploaded_at TIMESTAMP DEFAULT NOW()
 );
 

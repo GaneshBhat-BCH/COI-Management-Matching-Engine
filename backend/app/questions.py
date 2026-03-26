@@ -96,6 +96,21 @@ QUESTIONS_DATA = {
         "id": 15,
         "text": "Is the researcher petitioning for an exemption from a COI rule?",
         "prompt": "Perform a DEEP SEMANTIC LEGAL SEARCH for any mention of petition, exemption, exception, waiver, rebuttable presumption, or appeal. Output Yes if mentioned, No if explicitly denied, or NA if not referenced."
+      },
+      {
+        "id": 101,
+        "text": "Metadata: DATE",
+        "prompt": "Extract the primary date mentioned in the document (e.g., effective date, date of signature, or document date). Format as YYYY-MM-DD if possible, otherwise return as found."
+      },
+      {
+        "id": 102,
+        "text": "Metadata: DocuSign Envelope ID",
+        "prompt": "Extract the DocuSign Envelope ID if present in the document. It usually starts with 'Envelope Id:'. Return ONLY the ID."
+      },
+      {
+        "id": 103,
+        "text": "Metadata: FROM",
+        "prompt": "Extract the 'FROM' field or identify the primary sender/entity from whom the document originates."
       }
     ],
 
