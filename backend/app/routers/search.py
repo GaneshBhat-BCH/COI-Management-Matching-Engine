@@ -81,14 +81,14 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                 current_weighted_score = 0.0
                 
                 for item in request.questions_answers:
-                    q_text = item.get("question_text") or item.get("question") or item.get("text") or "Unknown Question"
+                    q_text = item.question or "Unknown Question"
                     
                     # Try to get ID from request, if missing, lookup by text
-                    q_id = str(item.get("question_id", ""))
+                    q_id = str(item.question_id or "")
                     if not q_id or q_id == "None":
                          q_id = QUESTION_TEXT_TO_ID.get(q_text.lower().strip(), "")
                     
-                    user_ref = item.get("answer_text") or item.get("answer") or ""
+                    user_ref = item.answer or ""
 
                     # NEW Logic: If user query is NA or empty, exclude from weighting and matching
                     if user_ref.upper().strip() in ["NA", "N/A", ""] or not user_ref.strip():
