@@ -102,7 +102,7 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                     found_answer = stored_map.get(q_id) or stored_map_text.get(q_text.lower().strip())
                     
                     if found_answer and found_answer != "N/A":
-                        user_ref = item.get("answer_text") or item.get("answer") or ""
+                        user_ref = item.answer or ""
                         
                         # MATCHING LOGIC: Tiered Approach
                         # 1. Normalize
@@ -199,9 +199,9 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
         # Check for AI-preferred questions (2, 4, 14) to force vector search later
         AI_DYNAMIC_IDS = {"2", "4", "14"}
         has_dynamic_q = any(
-            str(item.get("question_id", "")) in AI_DYNAMIC_IDS 
+            str(item.question_id or "") in AI_DYNAMIC_IDS 
             for item in request.questions_answers 
-            if (item.get("answer_text") or item.get("answer") or "").upper().strip() not in ["NA", "N/A", ""]
+            if (item.answer or "").upper().strip() not in ["NA", "N/A", ""]
         )
 
         # Construct OR-based TSQuery (match ANY term) to avoid strict AND failure
