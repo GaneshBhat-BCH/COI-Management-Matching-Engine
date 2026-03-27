@@ -83,12 +83,12 @@ QUESTIONS_DATA = {
       {
         "id": 13,
         "text": "What COI policy applies to this management plan?",
-        "prompt": "Identify the applicable COI Policy from REFERENCE_POLICIES. 1. If the facts match the criteria for 'Inventor_Equity_and_Licensing_Conflict_Policy' (Inventor/Co-Inventor of licensed IP), select it. 2. Otherwise, select the single most appropriate policy (HMS_COI_Policy, PHS_COI_Policy, or BCH_COI_Policy). Output ONLY the key name of the policy (e.g., HMS_COI_Policy). Do not assume executive authority for Co-Founders unless explicitly stated."
+        "prompt": "Identify the applicable COI Policy from REFERENCE_POLICIES. \n\nPRECEDENCE RULES (STRICT):\n1. IF the researcher involves 'Inventor' status OR 'Licensed Intellectual Property' (Question 7 is Yes), you MUST select 'Inventor_Equity_and_Licensing_Conflict_Policy'. This takes priority over all other policies.\n2. ELSE, select HMS_COI_Policy, PHS_COI_Policy, or BCH_COI_Policy based on the specific rules matched.\n\nOutput ONLY the key name of the policy (e.g., Inventor_Equity_and_Licensing_Conflict_Policy)."
       },
       {
         "id": 14,
         "text": "What COI rule applies to this management plan?",
-        "prompt": "Identify the specific Rule Name from the Policy selected in Question 13. 1. Look up the policy in REFERENCE_POLICIES. 2. Evaluate its 'Rules' list. 3. Select all rule 'Name' values that apply to the facts. 4. Output the EXACT Name(s) as a comma-separated list. If no rules apply, return NA."
+        "prompt": "Identify the specific Rule Name from the Policy selected in Question 13. \n\nCONSTRAINTS:\n1. Look up the policy in REFERENCE_POLICIES. \n2. Select the EXACT 'Name' value of the applying rule(s) from that policy's 'Rules' list. \n3. CRITICAL: Do NOT hallucinate names like 'Sponsored Research Rule I(b)' or '1(b) Rule'. ONLY use the Name string exactly as it appears in the list.\n4. Output as a comma-separated list."
       },
       {
         "id": 15,
@@ -116,22 +116,22 @@ QUESTIONS_DATA = {
       "HMS_COI_Policy": {
         "Rules": [
           {
-            "ID": "A1",
+            "ID": "HMS-A1",
             "Name": "Clinical Research Rule (formerly the “1(a) Rule”)",
             "Rule": "The individual participates in clinical research involving the company’s technology AND receives equity compensation (stock/options) from a privately held company OR receives cash compensation > $25,000 per year."
           },
           {
-            "ID": "A2",
+            "ID": "HMS-A2",
             "Name": "Research Support Rule (formerly the “1(b) Rule”)",
             "Rule": "The individual receives equity compensation (stock/options) from a privately held company AND the company sponsors or intends to sponsor research conducted in the individual’s laboratory."
           },
           {
-            "ID": "A3",
+            "ID": "HMS-A3",
             "Name": "Executive Position Rule (formerly the “1(c) Rule”)",
             "Rule": "The individual holds an executive role (CEO, COO, CSO, etc.) AND the company is for-profit AND the individual participates in clinical research or receives sponsored research funding. Note: Co-Founders/Advisors without executive title/authority are NOT executive."
           },
           {
-            "ID": "A4",
+            "ID": "HMS-A4",
             "Name": "External Activity Rule (formerly the “1(d) Rule”)",
             "Rule": "The individual holds a fiduciary role (e.g., Board of Directors) in a for-profit company AND participates in clinical research or receives sponsored research funding."
           }
@@ -141,6 +141,7 @@ QUESTIONS_DATA = {
       "PHS_COI_Policy": {
         "Rules": [
           {
+            "ID": "PHS-1",
             "Name": "PHS FCOI Rule",
             "Rule": "Equity in a privately held company related to a PHS-funded research project that requires a management plan."
           }
@@ -150,6 +151,7 @@ QUESTIONS_DATA = {
       "Inventor_Equity_and_Licensing_Conflict_Policy": {
         "Rules": [
           {
+            "ID": "INV-1",
             "Name": "Inventor Equity and Licensing Conflict Policy Rule",
             "Rule": "When an individual has equity in a private company and is the inventor or co-inventor of technology that BCH has licensed or aims to license to that company."
           }
@@ -159,6 +161,7 @@ QUESTIONS_DATA = {
       "BCH_COI_Policy": {
         "Rules": [
           {
+            "ID": "BCH-1",
             "Name": "BCH COI Policy Rule",
             "Rule": "Senior leadership team members (fiduciary roles) in for-profit companies. Includes rebuttable presumption against participation without compelling reasons."
           }
