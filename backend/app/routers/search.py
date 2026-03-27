@@ -12,9 +12,14 @@ router = APIRouter()
 # Precompute Question Text to ID Mapping
 QUESTION_TEXT_TO_ID = { q["text"].lower().strip(): str(q["id"]) for q in QUESTIONS }
 
+class SearchItem(BaseModel):
+    question: str
+    answer: str
+    question_id: Optional[str] = None
+
 class SearchRequest(BaseModel):
-    questions_answers: list[dict]
-    user_id: str = "anonymous_user"
+    user_id: str
+    questions_answers: list[SearchItem]
 
 @router.post("/search")
 async def search_documents(request: SearchRequest, db = Depends(get_db)):
@@ -23,11 +28,19 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
 
         # 1. Prepare Query
         # Combine Q&A into text for Embedding AND Keyword search
+        # 1. Collect Query Vectors and Metadata
         query_text = ""
         for item in request.questions_answers:
-             # Flexible key access
-             q = item.get("question_text") or item.get("question") or item.get("text") or ""
-             a = item.get("answer_text") or item.get("answer") or ""
+             q = item.question
+             a = item.answer
+             q_id = item.question_id
+             
+             if not q_id:
+                 q_id = QUESTION_TEXT_TO_ID.get(q.lower().strip())
+             
+             if not q_id:
+                  print(f"Warning: Question text not recognized for fallback ID: {q[:50]}...")
+                  continue
              
              # NEW Logic: Skip NA/Blank in query text to improve retrieval focus
              if a.upper().strip() in ["NA", "N/A", ""] or not a.strip():
