@@ -62,7 +62,50 @@ async def upload_file(
         answers_data = ai_result.get("answers", [])
         token_usage = ai_result.get("usage", {})
         
-        # 3. Preparation for Processing
+        # 3. Forensic Validation: Ensure Rule (Q14) matches Policy (Q13)
+        log_event("Upload Module", "Performing Forensic Validation of Policy/Rule alignment...", "PROGRESS")
+        
+        # Extract current answers to map
+        temp_map = { int(item.get("question_id", 0)): item.get("answer_text", "NA") for item in answers_data }
+        policy_id = 13
+        rule_id = 14
+        
+        selected_policy = temp_map.get(policy_id, "NA")
+        selected_rule = temp_map.get(rule_id, "NA")
+        
+        ref_policies = QUESTIONS_DATA["QUESTIONS_DATA"]["REFERENCE_POLICIES"]
+        
+        if selected_policy != "NA" and selected_policy in ref_policies:
+            valid_rules = [r["Name"] for r in ref_policies[selected_policy].get("Rules", [])]
+            
+            # Check if selected rule is actually in this policy
+            # Handle comma-separated lists
+            extracted_rules = [r.strip() for r in selected_rule.split(",")]
+            verified_rules = [r for r in extracted_rules if r in valid_rules]
+            
+            if not verified_rules:
+                # If AI returned a rule but it's not in the policy, check if it's in another policy
+                # Or just mark as NA to be safe, or try to find a match.
+                # For now, if mismatch, we try to see if the AI hallucinated a legacy name (contains the rule number)
+                import re
+                rule_num_match = re.search(r'\d+\([a-d]\)', selected_rule)
+                if rule_num_match:
+                    num_tag = rule_num_match.group(0) # e.g. "1(b)"
+                    for r_obj in ref_policies[selected_policy].get("Rules", []):
+                        if num_tag in r_obj["Name"]:
+                            verified_rules = [r_obj["Name"]]
+                            log_event("Upload Module", f"Forensic Fix: Remapped legacy '{selected_rule}' to '{verified_rules[0]}'", "WARNING")
+                            break
+            
+            final_rule_ans = ",".join(verified_rules) if verified_rules else "NA"
+            
+            # Update the answers_data with verified values
+            for item in answers_data:
+                if item.get("question_id") == rule_id:
+                    item["answer_text"] = final_rule_ans
+                    break
+        
+        # 4. Preparation for Processing
         answers_result = []
         texts_to_embed = []
         

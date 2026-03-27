@@ -83,7 +83,7 @@ QUESTIONS_DATA = {
       {
         "id": 13,
         "text": "What COI policy applies to this management plan?",
-        "prompt": "Identify the applicable COI Policy from REFERENCE_POLICIES. \n\nPRECEDENCE RULES (STRICT):\n1. IF the researcher involves 'Inventor' status OR 'Licensed Intellectual Property' (Question 7 is Yes), you MUST select 'Inventor_Equity_and_Licensing_Conflict_Policy'. This takes priority over all other policies.\n2. ELSE, select HMS_COI_Policy, PHS_COI_Policy, or BCH_COI_Policy based on the specific rules matched.\n\nOutput ONLY the key name of the policy (e.g., Inventor_Equity_and_Licensing_Conflict_Policy)."
+        "prompt": "Identify the applicable COI Policy from REFERENCE_POLICIES. 1. Carefully review if the facts match 'Inventor_Equity_and_Licensing_Conflict_Policy' (Question 7 is Yes) vs other policies. 2. Output ONLY the key name of the policy found in the REFERENCE_POLICIES schema (e.g., HMS_COI_Policy). Do not assume executive authority for Co-Founders unless explicitly stated."
       },
       {
         "id": 14,
