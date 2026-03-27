@@ -328,30 +328,62 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
         log_event("AI Service", f"Analysis failed: {str(e)}", "ERROR")
         print(f"AI ERROR: {e}")
         return {"answers": [], "usage": {}}
-async def is_semantic_equivalent(term1: str, term2: str) -> bool:
+async def is_semantic_equivalent_batch(pairs: list[tuple[str, str]]) -> list[bool]:
     """
-    Uses AI to determine if two terms are semantically equivalent 
-    (e.g., abbreviations like BDA vs Business Development Administrator).
+    Uses AI to determine semantic equivalence for a list of term pairs in a single call.
+    Returns a list of booleans in the same order as the input pairs.
     """
-    if not term1 or not term2:
-        return False
+    if not pairs:
+        return []
     
-    # Fast-track literal matches
-    t1 = term1.lower().strip()
-    t2 = term2.lower().strip()
-    if t1 == t2:
-        return True
+    # 1. Prepare unique pairs to save tokens, but keep mapping for output
+    unique_pairs = list(set(pairs))
+    results_map = {}
+    
+    # Fast-track literal matches for unique pairs
+    remaining_pairs = []
+    for p in unique_pairs:
+        if p[0].lower().strip() == p[1].lower().strip():
+            results_map[p] = True
+        else:
+            remaining_pairs.append(p)
+            
+    if remaining_pairs:
+        try:
+            prompt = "Determine if the following term pairs are semantically equivalent (same entity, job title, or concept). Respond with a JSON list of booleans [true, false, ...] matching the order of the pairs.\n\nPAIRS:\n"
+            for p in remaining_pairs:
+                prompt += f"- Term 1: '{p[0]}', Term 2: '{p[1]}'\n"
+            
+            response = await client.chat.completions.create(
+                model=GPT_DEPLOYMENT,
+                messages=[
+                    {"role": "system", "content": "You are a professional semantic matching assistant. Compare term pairs. Consider common institutional acronyms (SAB, BOD, BDA). Output ONLY a JSON list of booleans."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            
+            # Robust JSON parsing: look for any list in the response
+            data = json.loads(response.choices[0].message.content)
+            batch_results = []
+            if isinstance(data, list):
+                batch_results = data
+            elif isinstance(data, dict):
+                # Look for the first value that is a list
+                for val in data.values():
+                    if isinstance(val, list):
+                        batch_results = val
+                        break
+            
+            for i, p in enumerate(remaining_pairs):
+                if i < len(batch_results):
+                    results_map[p] = bool(batch_results[i])
+                else:
+                    results_map[p] = False
+        except Exception as e:
+            print(f"Batch Semantic Error: {e}")
+            for p in remaining_pairs:
+                results_map[p] = False
 
-    try:
-        response = await client.chat.completions.create(
-            model=GPT_DEPLOYMENT,
-            messages=[
-                {"role": "system", "content": "You are a professional semantic matching assistant. Compare two terms and decide if they represent the same entity, job title, or concept, specifically considering common institutional acronyms (e.g., SAB for Scientific Advisory Board, BDA for Business Development Admin, BOD for Board of Directors). If the terms are semantically equivalent or if one is a valid abbreviation/synonym of the other, answer only 'YES'. Otherwise, answer 'NO'."},
-                {"role": "user", "content": f"Term 1: '{term1}'\nTerm 2: '{term2}'\nAre they semantically equivalent?"}
-            ]
-        )
-        result = response.choices[0].message.content.upper().strip()
-        return "YES" in result
-    except Exception as e:
-        print(f"Semantic Check Error: {e}")
-        return False
+    # Map back to original order
+    return [results_map.get(p, False) for p in pairs]

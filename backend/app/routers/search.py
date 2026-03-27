@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
-from app.services.ai import get_embeddings, is_semantic_equivalent
+from app.services.ai import get_embeddings, is_semantic_equivalent_batch
 from app.utils.logger import log_event
 from app.utils.html_templates import generate_search_results_html
 from app.questions import QUESTIONS
@@ -53,20 +53,21 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
             log_event("Search Module", "Empty search query", "WARNING")
             raise HTTPException(status_code=400, detail="Empty search query")
 
-        # ... (logic remains) ...
-        
-        # Helper: Process a list of DB rows into Verified Forensic Candidates
-        async def get_verified_candidates(db_rows, source_label="Unknown"):
-            processed_candidates = []
-            
-            # Weighted Scoring Configuration
-            # Q1 (Cofounder), Q2 (Role), Q13 (Policy), Q14 (Rule), Q15 (Exemption) → High Weight
-            HIGH_WEIGHT_IDS = {"1", "2", "13", "14", "15"}
-            HIGH_WEIGHT_VAL = 3.0
-            NORMAL_WEIGHT_VAL = 1.0
-            THRESHOLD_PERCENT = 0.80  # 80% match requirement
 
-            for row in db_rows:
+        # Weighted Scoring Configuration
+        HIGH_WEIGHT_IDS = {"1", "2", "13", "14", "15"}
+        HIGH_WEIGHT_VAL = 3.0
+        NORMAL_WEIGHT_VAL = 1.0
+        THRESHOLD_PERCENT = 0.80  # 80% match requirement
+
+        # Helper: Process a list of DB rows into Verified Forensic Candidates
+        async def get_verified_candidates(rows, source_label="Unknown"):
+            if not rows: return []
+            processed_candidates = []
+            semantic_candidates = []
+            
+            # --- PASS 1: Rule-Based Matching ---
+            for row_idx, row in enumerate(rows):
                 pdf_id = row["pdf_id"]
                 query_answers = "SELECT question_id, question_text, answer_text FROM coi_mgmt.pdf_answers WHERE pdf_id = :pdf_id"
                 stored_answers = await db.fetch_all(query_answers, values={"pdf_id": pdf_id})
@@ -76,129 +77,111 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                 
                 matches = []
                 non_matches = []
-                
                 total_possible_weight = 0.0
                 current_weighted_score = 0.0
                 
                 for item in request.questions_answers:
                     q_text = item.question or "Unknown Question"
-                    
-                    # Try to get ID from request, if missing, lookup by text
                     q_id = str(item.question_id or "")
                     if not q_id or q_id == "None":
                          q_id = QUESTION_TEXT_TO_ID.get(q_text.lower().strip(), "")
                     
                     user_ref = item.answer or ""
-
-                    # NEW Logic: If user query is NA or empty, exclude from weighting and matching
                     if user_ref.upper().strip() in ["NA", "N/A", ""] or not user_ref.strip():
                         continue
 
-                    # Determine Weight
                     weight = HIGH_WEIGHT_VAL if q_id in HIGH_WEIGHT_IDS else NORMAL_WEIGHT_VAL
                     total_possible_weight += weight
                     
-                    # Try matching by ID first, then by text
                     found_answer = stored_map.get(q_id) or stored_map_text.get(q_text.lower().strip())
-                    
                     if found_answer and found_answer != "N/A":
-                        user_ref = item.answer or ""
-                        
-                        # MATCHING LOGIC: Tiered Approach
                         # 1. Normalize
                         def normalize_for_match(text):
                             import re
                             text = text.lower()
-                            # Strip ALL non-alphanumeric characters (including brackets, parens, etc)
-                            text = re.sub(r'[^a-zA-Z0-9]', '', text) 
-                            return text
+                            return re.sub(r'[^a-zA-Z0-9]', '', text) 
 
                         norm_user = normalize_for_match(user_ref)
                         norm_pdf = normalize_for_match(found_answer)
-                        
                         score_mult = 0.0
                         status_msg = "Mismatch"
 
-                        # 2. Check 1: Strict Normalized Match
+                        # 2. Tiered Rules
                         if norm_user == norm_pdf:
                             score_mult = 1.0
                             status_msg = "Match (Exact)"
                         else:
-                            # 3. Check 2: Fuzzy Match (> 95%)
                             from difflib import SequenceMatcher
                             similarity = SequenceMatcher(None, norm_user, norm_pdf).ratio()
                             if similarity >= 0.95:
                                 score_mult = 1.0
                                 status_msg = f"Match (Fuzzy {similarity:.0%})"
                             else:
-                                # 4. Check 3: Token Partial Overlap
                                 import re
-                                # Split on ANY non-alphanumeric character sequence
                                 user_tokens = set(re.split(r'[^a-zA-Z0-9]+', user_ref.lower()))
                                 pdf_tokens = set(re.split(r'[^a-zA-Z0-9]+', found_answer.lower()))
                                 user_tokens = {t for t in user_tokens if t}
                                 pdf_tokens = {t for t in pdf_tokens if t}
-                                
-                                # Token intersection
                                 common = user_tokens.intersection(pdf_tokens)
                                 if common:
                                     score_mult = 0.8
                                     status_msg = f"Partial Match (Overlap: {len(common)} tokens)"
                                 else:
-                                    # 5. NEW Check 4: Semantic Equivalence (AI Bridge)
-                                    # Only for non-NA values to save tokens
-                                    if await is_semantic_equivalent(user_ref, found_answer):
-                                        score_mult = 1.0
-                                        status_msg = "Match (Semantic AI)"
+                                    semantic_candidates.append({
+                                        "cand_idx": row_idx,
+                                        "match_idx": len(matches),
+                                        "user_val": user_ref,
+                                        "pdf_val": found_answer
+                                    })
 
-                        if score_mult > 0:
-                            matches.append({
-                                "question": q_text, 
-                                "pdf_answer": found_answer, 
-                                "user_answer_ref": user_ref, 
-                                "match_type": status_msg,
-                                "weight": weight,
-                                "score_earned": (weight * score_mult)
-                            })
-                            current_weighted_score += (weight * score_mult)
-                        else:
-                            non_matches.append({
-                                "question": q_text, 
-                                "pdf_answer": found_answer, 
-                                "user_answer_ref": user_ref, 
-                                "status": status_msg,
-                                "weight": weight,
-                                "score_earned": 0.0
-                            })
-                    else:
-                        non_matches.append({
+                        matches.append({
                             "question": q_text, 
-                            "status": "Not Found in this PDF",
+                            "pdf_answer": found_answer, 
+                            "user_answer_ref": user_ref, 
+                            "match_type": status_msg,
                             "weight": weight,
-                            "score_earned": 0.0
+                            "score_earned": (weight * score_mult)
                         })
-
-                # Calculate Weighted Percentage
-                score_ratio = (current_weighted_score / total_possible_weight) if total_possible_weight > 0 else 0.0
+                        current_weighted_score += (weight * score_mult)
+                    else:
+                        non_matches.append({"question": q_text, "pdf_answer": "NA", "user_answer_ref": user_ref})
 
                 processed_candidates.append({
-                    "pdf_id": pdf_id,
                     "pdf_name": row["file_name"],
-                    "match_score_raw": score_ratio, # Using weighted ratio
-                    "relevance_details": {"vector": float(row["max_sim"]), "keyword_rank": float(row["max_rank"])},
+                    "pdf_id": str(pdf_id),
+                    "match_score_raw": 0.0,
+                    "weighted_score": current_weighted_score,
+                    "total_possible": total_possible_weight,
                     "matched_qa": matches,
                     "unmatched_qa": non_matches,
-                    "valid_match_count": len(matches),
-                    "weighted_details": f"Score: {current_weighted_score}/{total_possible_weight}",
+                    "relevance_details": {"vector": float(row["max_sim"]), "keyword_rank": float(row["max_rank"])},
                     "source_label": source_label 
                 })
-            
-            # Filter by Threshold (>= 80%)
-            verified = [c for c in processed_candidates if c["match_score_raw"] >= THRESHOLD_PERCENT]
-            # If nothing verified, but we have high vector score, maybe keep them?
-            # User requirement: "That match % should come atlest 80%" - so strictly filter.
-            
-            # Sort by Weighted Score (descending)
+
+            # --- PASS 2: Batch Semantic AI Bridge ---
+            if semantic_candidates:
+                log_event("Search Module", f"Batching {len(semantic_candidates)} semantic checks...", "PROGRESS")
+                pairs = [(c["user_val"], c["pdf_val"]) for c in semantic_candidates]
+                batch_results = await is_semantic_equivalent_batch(pairs)
+                for i, is_match in enumerate(batch_results):
+                    if is_match:
+                        info = semantic_candidates[i]
+                        cand = processed_candidates[info["cand_idx"]]
+                        match_item = cand["matched_qa"][info["match_idx"]]
+                        match_item["match_type"] = "Match (Semantic AI)"
+                        match_item["score_earned"] = match_item["weight"]
+                        cand["weighted_score"] += match_item["weight"]
+
+            # --- PASS 3: Final Filtering & Sorting ---
+            verified = []
+            for cand in processed_candidates:
+                score = (cand["weighted_score"] / cand["total_possible"] * 100) if cand["total_possible"] > 0 else 0
+                cand["match_score_raw"] = round(score, 1)
+                if cand["match_score_raw"] >= THRESHOLD_PERCENT * 100:
+                    cand["match_score"] = f"{cand['match_score_raw']}%"
+                    cand["weightage_details"] = f"Score: {cand['weighted_score']}/{cand['total_possible']}"
+                    verified.append(cand)
+
             verified.sort(key=lambda x: x["match_score_raw"], reverse=True)
             return verified
 
@@ -295,10 +278,10 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
         for c in final_results:
              formatted_results.append({
                 "pdf_name": c["pdf_name"],
-                "weightage_details": c["weighted_details"],
-                "match_score": f"{c['match_score_raw'] * 100:.1f}%",
-                "search_method": c.get("source_label", search_method), # Use individual source label
-                "relevance_details": c["relevance_details"],
+                "weightage_details": c.get("weightage_details", ""),
+                "match_score": c.get("match_score", "0%"),
+                "search_method": c.get("source_label", search_method),
+                "relevance_details": c.get("relevance_details", {}),
                 "matched_qa": c["matched_qa"],
                 "unmatched_qa": c["unmatched_qa"]
              })
