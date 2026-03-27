@@ -346,10 +346,9 @@ async def is_semantic_equivalent(term1: str, term2: str) -> bool:
         response = await client.chat.completions.create(
             model=GPT_DEPLOYMENT,
             messages=[
-                {"role": "system", "content": "You are a semantic matching assistant. Compare two terms and decide if they represent the same entity, title, or value, even if one is an abbreviation or acronym. Answer only with 'YES' or 'NO'."},
+                {"role": "system", "content": "You are a professional semantic matching assistant. Compare two terms and decide if they represent the same entity, job title, or concept, specifically considering common institutional acronyms (e.g., SAB for Scientific Advisory Board, BDA for Business Development Admin, BOD for Board of Directors). If the terms are semantically equivalent or if one is a valid abbreviation/synonym of the other, answer only 'YES'. Otherwise, answer 'NO'."},
                 {"role": "user", "content": f"Term 1: '{term1}'\nTerm 2: '{term2}'\nAre they semantically equivalent?"}
-            ],
-            max_tokens=5 # Keep it tiny
+            ]
         )
         result = response.choices[0].message.content.upper().strip()
         return "YES" in result
