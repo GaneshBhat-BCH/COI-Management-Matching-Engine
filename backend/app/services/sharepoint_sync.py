@@ -261,41 +261,54 @@ async def sync_sharepoint():
                         else:
                              final_answers.append(ans)
 
-                    # 4. Store in DB
+                    # 4. Initial DB Record (to get pdf_id)
                     if existing:
-                        query_upsert = """
-                        UPDATE coi_mgmt.pdf_documents 
-                        SET file_path = :file_path, modified_at = :modified_at, doc_date = :doc_date, 
-                            docusign_id = :docusign_id, from_user = :from_user, result_body = :result_body,
-                            input_body = :input_body
-                        WHERE pdf_id = :pdf_id
-                        """
-                        await db.execute(query_upsert, values={
-                            "pdf_id": pdf_id,
-                            "file_path": item.get("webUrl", "sharepoint"),
-                            "modified_at": modified_at,
-                            "doc_date": doc_date,
-                            "docusign_id": docusign_id,
-                            "from_user": from_user,
-                            "result_body": json.dumps({"answers": final_answers}),
-                            "input_body": input_body
-                        })
+                        # pdf_id already exists from 'existing' fetch
+                        pass
                     else:
-                        query_upsert = """
-                        INSERT INTO coi_mgmt.pdf_documents (file_name, file_path, modified_at, doc_date, docusign_id, from_user, result_body, input_body)
-                        VALUES (:file_name, :file_path, :modified_at, :doc_date, :docusign_id, :from_user, :result_body, :input_body)
+                        query_init = """
+                        INSERT INTO coi_mgmt.pdf_documents (file_name, file_path, modified_at)
+                        VALUES (:file_name, :file_path, :modified_at)
                         RETURNING pdf_id
                         """
-                        pdf_id = await db.fetch_val(query_upsert, values={
+                        pdf_id = await db.fetch_val(query_init, values={
                             "file_name": display_file_name,
                             "file_path": item.get("webUrl", "sharepoint"),
-                            "modified_at": modified_at,
-                            "doc_date": doc_date,
-                            "docusign_id": docusign_id,
-                            "from_user": from_user,
-                            "result_body": json.dumps({"answers": final_answers}),
-                            "input_body": input_body
+                            "modified_at": modified_at
                         })
+                    
+                    # 5. Process Answers (Logic already performed above in ai_result)
+                    
+                    # 6. Construct Rich Result Body (Matching user request)
+                    response_data = {
+                        "status": "success",
+                        "pdf_id": str(pdf_id),
+                        "extracted_text_preview": (input_body[:500] if input_body else ""),
+                        "answers": final_answers,
+                        "chunks_created": len(final_answers),
+                        "token_usage": ai_result.get("usage", {})
+                    }
+                    result_body_json = json.dumps(response_data, default=str)
+
+                    # 7. Final Update to pdf_documents
+                    query_update = """
+                    UPDATE coi_mgmt.pdf_documents 
+                    SET doc_date = :doc_date, docusign_id = :docusign_id, 
+                        from_user = :from_user, result_body = :result_body,
+                        input_body = :input_body, file_path = :file_path,
+                        modified_at = :modified_at
+                    WHERE pdf_id = :pdf_id
+                    """
+                    await db.execute(query_update, values={
+                        "pdf_id": pdf_id,
+                        "doc_date": doc_date,
+                        "docusign_id": docusign_id,
+                        "from_user": from_user,
+                        "result_body": result_body_json,
+                        "input_body": input_body,
+                        "file_path": item.get("webUrl", "sharepoint"),
+                        "modified_at": modified_at
+                    })
                     
                     # 5. Process Answers (Vectorize & Store)
                     texts_to_embed = [ans.get("answer_text", "N/A") for ans in final_answers]
