@@ -100,17 +100,17 @@ def generate_search_results_html(results, search_method):
             pdf_ans = item.get("pdf_answer", "NA")
             
             # Determine Row Style and Status
-            if item.get("_is_match"):
+            if item.get("score_earned", 0) > 0:
                 row_class = "match-row"
                 status_html = f'<span class="status-exact">✔ {item.get("match_type", "Match")}</span>'
             else:
-                 status = item.get("status", "Mismatch")
+                 status = item.get("match_type") or "Mismatch"
                  if "Not Found" in status:
                      row_class = "notfound-row"
                      status_html = f'<span class="status-mismatch">❌ {status}</span>'
                  else:
                      row_class = "mismatch-row"
-                     status_html = f'<span class="status-mismatch">⚠ {status}</span>'
+                     status_html = f'<span class="status-mismatch">✖ {status}</span>'
             
             weight = item.get("weight", 0)
             score = item.get("score_earned", 0)

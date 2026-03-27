@@ -340,10 +340,25 @@ async def is_semantic_equivalent_batch(pairs: list[tuple[str, str]]) -> list[boo
     unique_pairs = list(set(pairs))
     results_map = {}
     
+    # 2. Pre-filter rule: Skip if either term is just symbols or empty
+    def is_meaningful(text):
+        if not text: return False
+        import re
+        # Must contain at least one alphanumeric character
+        return bool(re.search(r'[a-zA-Z0-9]', text))
+
     # Fast-track literal matches for unique pairs
     remaining_pairs = []
     for p in unique_pairs:
-        if p[0].lower().strip() == p[1].lower().strip():
+        t1, t2 = p[0], p[1]
+        
+        if not is_meaningful(t1) or not is_meaningful(t2):
+            # If one is meaningful but other is literally "NA", we could check, 
+            # but usually [] vs NA is a mismatch in user intent.
+            # If BOTH are non-meaningful (e.g. [] vs NA), it's a "technical match" but user wants DATA.
+            # User expectation: [] vs NA should be a Mismatch (0 score) to avoid false pass.
+            results_map[p] = False
+        elif t1.lower().strip() == t2.lower().strip():
             results_map[p] = True
         else:
             remaining_pairs.append(p)

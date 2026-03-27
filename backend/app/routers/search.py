@@ -73,7 +73,7 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                 stored_answers = await db.fetch_all(query_answers, values={"pdf_id": pdf_id})
                 
                 stored_map = { str(rec["question_id"]): rec["answer_text"] for rec in stored_answers }
-                stored_map_text = { rec["question_text"].lower().strip(): rec["answer_text"] for rec in stored_answers }
+                stored_map_text = { (rec["question_text"] or "").lower().strip(): rec["answer_text"] for rec in stored_answers }
                 
                 matches = []
                 non_matches = []
@@ -94,7 +94,8 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                     total_possible_weight += weight
                     
                     found_answer = stored_map.get(q_id) or stored_map_text.get(q_text.lower().strip())
-                    if found_answer and found_answer != "N/A":
+                    
+                    if found_answer and found_answer.upper().strip() not in ["N/A", "NA", ""]:
                         # 1. Normalize
                         def normalize_for_match(text):
                             import re
@@ -120,13 +121,14 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                                 import re
                                 user_tokens = set(re.split(r'[^a-zA-Z0-9]+', user_ref.lower()))
                                 pdf_tokens = set(re.split(r'[^a-zA-Z0-9]+', found_answer.lower()))
-                                user_tokens = {t for t in user_tokens if t}
-                                pdf_tokens = {t for t in pdf_tokens if t}
+                                user_tokens = {t for t in user_tokens if t if len(t) > 2}
+                                pdf_tokens = {t for t in pdf_tokens if t if len(t) > 2}
                                 common = user_tokens.intersection(pdf_tokens)
                                 if common:
                                     score_mult = 0.8
                                     status_msg = f"Partial Match (Overlap: {len(common)} tokens)"
                                 else:
+                                    # Flag for Pass 2 (Semantic)
                                     semantic_candidates.append({
                                         "cand_idx": row_idx,
                                         "match_idx": len(matches),
@@ -144,7 +146,14 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                         })
                         current_weighted_score += (weight * score_mult)
                     else:
-                        non_matches.append({"question": q_text, "pdf_answer": "NA", "user_answer_ref": user_ref})
+                        non_matches.append({
+                            "question": q_text, 
+                            "pdf_answer": "NA", 
+                            "user_answer_ref": user_ref,
+                            "match_type": "Mismatch",
+                            "weight": weight,
+                            "score_earned": 0.0
+                        })
 
                 processed_candidates.append({
                     "pdf_name": row["file_name"],
@@ -172,11 +181,20 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                         match_item["score_earned"] = match_item["weight"]
                         cand["weighted_score"] += match_item["weight"]
 
-            # --- PASS 3: Final Filtering & Sorting ---
+            # --- PASS 3: Final Filtering & Scoring ---
             verified = []
             for cand in processed_candidates:
                 score = (cand["weighted_score"] / cand["total_possible"] * 100) if cand["total_possible"] > 0 else 0
                 cand["match_score_raw"] = round(score, 1)
+                
+                # Split matched_qa into actual matches vs confirmed mismatches
+                final_matches = [m for m in cand["matched_qa"] if m["score_earned"] > 0]
+                final_mismatches = [m for m in cand["matched_qa"] if m["score_earned"] == 0]
+                final_mismatches.extend(cand["unmatched_qa"])
+                
+                cand["matched_qa"] = final_matches
+                cand["unmatched_qa"] = final_mismatches
+                
                 if cand["match_score_raw"] >= THRESHOLD_PERCENT * 100:
                     cand["match_score"] = f"{cand['match_score_raw']}%"
                     cand["weightage_details"] = f"Score: {cand['weighted_score']}/{cand['total_possible']}"
@@ -185,8 +203,8 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
             verified.sort(key=lambda x: x["match_score_raw"], reverse=True)
             return verified
 
-        # 2. STEP 1: PURE KEYWORD SEARCH (No Model Cost)
-        log_event("Search Module", "Attempting Keyword-First search...", "PROGRESS")
+        # 2. STEP 1: DEEP KEYWORD SEARCH
+        log_event("Search Module", "Attempting Deep Keyword search...", "PROGRESS")
         
         # Check for AI-preferred questions (2, 4, 14) to force vector search later
         AI_DYNAMIC_IDS = {"2", "4", "14"}
@@ -198,23 +216,36 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
 
         # Construct OR-based TSQuery (match ANY term) to avoid strict AND failure
         import re
-        clean_tokens = re.findall(r'\w+', query_text)
-        query_or = " | ".join(clean_tokens) if clean_tokens else query_text
+        tokens = re.findall(r'\w+', query_text)
+        query_or = " | ".join(tokens) if tokens else query_text
+        query_regex = "|".join(tokens) if tokens else query_text
 
         keyword_search_query = """
-        SELECT pdf.file_name, pdf.pdf_id, 0 as max_sim, MAX(ts_rank(c.search_vector, to_tsquery('english', :query_or))) as max_rank
-        FROM coi_mgmt.pdf_chunks c
+        WITH kw_candidates AS (
+            -- Search in chunks
+            SELECT pdf_id, MAX(ts_rank(search_vector, to_tsquery('english', :query_or))) as rank
+            FROM coi_mgmt.pdf_chunks
+            WHERE search_vector @@ to_tsquery('english', :query_or)
+            GROUP BY pdf_id
+            UNION
+            -- Search in extracted answers (using regex for broad matching)
+            SELECT pdf_id, 1.0 as rank
+            FROM coi_mgmt.pdf_answers
+            WHERE answer_text ~* :query_regex
+            GROUP BY pdf_id
+        )
+        SELECT pdf.file_name, c.pdf_id, 0 as max_sim, MAX(c.rank) as max_rank
+        FROM kw_candidates c
         JOIN coi_mgmt.pdf_documents pdf ON c.pdf_id = pdf.pdf_id
-        WHERE c.search_vector @@ to_tsquery('english', :query_or)
-        GROUP BY pdf.file_name, pdf.pdf_id
+        GROUP BY pdf.file_name, c.pdf_id
         ORDER BY max_rank DESC LIMIT 200
         """
         try:
-            results_kw = await db.fetch_all(keyword_search_query, values={"query_or": query_or})
+            results_kw = await db.fetch_all(keyword_search_query, values={"query_or": query_or, "query_regex": query_regex})
         except Exception as sql_err:
              # Fallback to plainto_tsquery if OR syntax fails (rare)
-             log_event("Search Module", f"OR-query failed ({sql_err}), retrying with strict...", "WARNING")
-             query_strict = """
+             log_event("Search Module", f"Deep query failed ({sql_err}), falling back to standard...", "WARNING")
+             query_std = """
              SELECT pdf.file_name, pdf.pdf_id, 0 as max_sim, MAX(ts_rank(c.search_vector, plainto_tsquery('english', :query_text))) as max_rank
              FROM coi_mgmt.pdf_chunks c
              JOIN coi_mgmt.pdf_documents pdf ON c.pdf_id = pdf.pdf_id
@@ -222,38 +253,32 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
              GROUP BY pdf.file_name, pdf.pdf_id
              ORDER BY max_rank DESC LIMIT 200
              """
-             results_kw = await db.fetch_all(query_strict, values={"query_text": query_text})
+             results_kw = await db.fetch_all(query_std, values={"query_text": query_text})
 
         log_event("Search Module", f"Step 1 Raw Results: Found {len(results_kw)} rows via SQL.", "DEBUG")
-        candidates = await get_verified_candidates(results_kw, source_label="SQL Keyword")
-        search_method = "SQL Keyword (Free)"
+        candidates = await get_verified_candidates(results_kw, source_label="Deep Keyword")
+        search_method = "Keyword (BM25)"
 
-        # 3. STEP 2: FALLBACK OR FORCED VECTOR SEARCH
-        # Trigger Vector Search if fewer than 3 candidates found OR if dynamic questions are involved
+        # 3. STEP 2: FALLBACK VECTOR SEARCH 
+        # (Only if fewer than 3 verified PDFs OR if high-impact dynamic questions are used)
         if len(candidates) < 3 or has_dynamic_q:
             if has_dynamic_q:
                 log_event("Search Module", "High-impact questions detected (2, 4, 14). Forcing AI Vector Search for semantic accuracy.", "PROGRESS")
             else:
-                log_event("Search Module", f"Keyword search found only {len(candidates)} verified PDFs. Augmenting with Vectorization...", "PROGRESS")
+                log_event("Search Module", f"Found only {len(candidates)} high-confidence matches via keywords. Triggering Vector Fallback...", "PROGRESS")
             
-            search_method = "Hybrid (Keyword + Vector)"
+            search_method = "Hybrid (Deep Keyword + Vector)"
             query_embedding = await get_embeddings(query_text)
             embedding_str = str(query_embedding)
             
             search_query_vec = """
-            WITH matches AS (
-                SELECT pdf.file_name, pdf.pdf_id, 1 - (c.chunk_embedding <=> :embedding) as vector_sim,
-                       ts_rank(c.search_vector, plainto_tsquery('english', :query_text)) as text_rank
+                SELECT pdf.file_name, pdf.pdf_id, 1 - (c.chunk_embedding <=> :embedding) as max_sim, 0 as max_rank
                 FROM coi_mgmt.pdf_chunks c
                 JOIN coi_mgmt.pdf_documents pdf ON c.pdf_id = pdf.pdf_id
                 WHERE 1 - (c.chunk_embedding <=> :embedding) > 0.5
-            )
-            SELECT pdf_id, file_name, MAX(vector_sim) as max_sim, MAX(text_rank) as max_rank
-            FROM matches 
-            GROUP BY pdf_id, file_name 
-            ORDER BY max_sim DESC, max_rank DESC LIMIT 10
+                ORDER BY max_sim DESC LIMIT 100
             """
-            results_vec = await db.fetch_all(search_query_vec, values={"embedding": embedding_str, "query_text": query_text})
+            results_vec = await db.fetch_all(search_query_vec, values={"embedding": embedding_str})
             
             # Identify which PDFs we already found via keyword to avoid redundant verification
             existing_pdf_ids = {str(c["pdf_id"]) for c in candidates}
