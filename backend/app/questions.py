@@ -81,16 +81,14 @@ QUESTIONS_DATA = {
         "prompt": "Extract the data from the input and determine whether the company seeks to sponsor research at BCH. Output Yes or No. If not mentioned, return NA."
       },
       {
-  "id": 13,
-  "text": "What COI policy applies to this management plan?",
-  "prompt": "Perform a DEEP LEGAL ANALYSIS using ONLY REFERENCE_POLICIES. Before beginning the analysis, review the stated assumptions and the raw input. Follow these steps STRICTLY and in order:\n\nSTEP 1: Determine from the raw data whether the researcher is an INVENTOR or CO-INVENTOR of any intellectual property that is licensed, proposed to be licensed, or otherwise transferred to the company. \n- IMPORTANT: Do NOT assume that co-founder, company founder, or company advisor status implies an executive position or inventor status unless explicitly stated in the raw data.\n\nSTEP 2: IF the researcher IS an inventor or co-inventor, immediately evaluate the applicability of the 'Inventor_Equity_and_Licensing_Conflict_Policy'.\n\nSTEP 3: COMPLIANCE CHECK — Assess whether ALL required conditions of the 'Inventor_Equity_and_Licensing_Conflict_Policy' are fully satisfied based on the facts provided.\n\nSTEP 4: DECISION LOGIC:\n- If ALL conditions are satisfied, output ONLY: 'Inventor_Equity_and_Licensing_Conflict_Policy' and STOP.\n- If ANY condition is NOT satisfied, OR if the researcher is NOT an inventor or co-inventor, proceed to evaluate HMS_COI_Policy, PHS_COI_Policy, and BCH_COI_Policy.\n\nSTEP 5: Select and output ONLY ONE policy — the single most appropriate policy based on the facts. Do NOT assume executive position, co-founder authority, or management control unless explicitly stated. Do NOT include explanations, reasoning, or multiple outputs."
-}
-
-,
+        "id": 13,
+        "text": "What COI policy applies to this management plan?",
+        "prompt": "Identify the applicable COI Policy from REFERENCE_POLICIES. 1. If the facts match the criteria for 'Inventor_Equity_and_Licensing_Conflict_Policy' (Inventor/Co-Inventor of licensed IP), select it. 2. Otherwise, select the single most appropriate policy (HMS_COI_Policy, PHS_COI_Policy, or BCH_COI_Policy). Output ONLY the key name of the policy (e.g., HMS_COI_Policy). Do not assume executive authority for Co-Founders unless explicitly stated."
+      },
       {
         "id": 14,
         "text": "What COI rule applies to this management plan?",
-        "prompt": "Perform a DEEP RULE-BY-RULE ANALYSIS. 1. If Question 13 is 'NA', return 'NA'. 2. Retrieve the Policy Name from Question 13 and look it up in REFERENCE_POLICIES. 3. Evaluate ALL Rules provided under that Policy. 4. Select ALL Rules that have the exact matched conditions without any partial match. 5. Output the EXACT value(s) of the 'Name' field from the matched rule(s). If multiple rules match, return them as a comma-separated list (e.g., Rule1,Rule2). If the Policy is a single object (not a list), return its Name from rule section."
+        "prompt": "Identify the specific Rule Name from the Policy selected in Question 13. 1. Look up the policy in REFERENCE_POLICIES. 2. Evaluate its 'Rules' list. 3. Select all rule 'Name' values that apply to the facts. 4. Output the EXACT Name(s) as a comma-separated list. If no rules apply, return NA."
       },
       {
         "id": 15,
@@ -120,43 +118,22 @@ QUESTIONS_DATA = {
           {
             "ID": "A1",
             "Name": "Clinical Research Rule (formerly the “1(a) Rule”)",
-            "Rule": [
-              "The individual participates in clinical research involving the company’s technology.",
-              "The individual receives equity compensation (e.g., stock, stock options) from the company.",
-              "The company providing equity is privately held.",
-              "The individual receives cash compensation from the company exceeding $25,000 per year."
-            ]
+            "Rule": "The individual participates in clinical research involving the company’s technology AND receives equity compensation (stock/options) from a privately held company OR receives cash compensation > $25,000 per year."
           },
           {
             "ID": "A2",
             "Name": "Research Support Rule (formerly the “1(b) Rule”)",
-            "Rule": [
-              "The individual receives equity compensation (e.g., stock, stock options) from the company.",
-              "The company providing equity is privately held.",
-              "The company sponsors or intends to sponsor research conducted in the individual’s laboratory."
-            ]
+            "Rule": "The individual receives equity compensation (stock/options) from a privately held company AND the company sponsors or intends to sponsor research conducted in the individual’s laboratory."
           },
           {
             "ID": "A3",
             "Name": "Executive Position Rule (formerly the “1(c) Rule”)",
-            "Rule": [
-              "The individual holds or seeks to hold an executive role within the company, Must think asumptions in the top and decide the answer (e.g., CEO, COO, CSO, CMO, or another role with material responsibility for company operations or management excpet Only Co-Founder not considered as Executive). Most importantly, scientific advisory board positions do not count as executive management positions.A Co-Founder is considered an executive management position only if they hold an executive title or have operational decision-making authority; a Co-Founder who is solely a shareholder, advisor, or holds a non-executive or honorary role is not considered executive management.",
-              "Note: Only consider executive position if explicitly stated. Co-Founders without executive title or authority, and advisory board members, are NOT executive.",
-              "The company is for-profit.",
-              "The individual participates in clinical research involving the company’s technology.",
-              "The individual receives sponsored research funding from the company.",
-              "The individual holds a full-time or part-time HMS faculty appointment."
-            ]
+            "Rule": "The individual holds an executive role (CEO, COO, CSO, etc.) AND the company is for-profit AND the individual participates in clinical research or receives sponsored research funding. Note: Co-Founders/Advisors without executive title/authority are NOT executive."
           },
           {
             "ID": "A4",
             "Name": "External Activity Rule (formerly the “1(d) Rule”)",
-            "Rule": [
-              "The individual holds or seeks to hold a fiduciary role with the company (e.g., Board of Directors position).",
-              "The company is for-profit.",
-              "The individual participates in clinical research involving the company’s technology.",
-              "The individual receives sponsored research funding from the company."
-            ]
+            "Rule": "The individual holds a fiduciary role (e.g., Board of Directors) in a for-profit company AND participates in clinical research or receives sponsored research funding."
           }
         ]
       },
@@ -165,21 +142,27 @@ QUESTIONS_DATA = {
         "Rules": [
           {
             "Name": "PHS FCOI Rule",
-            "Intent": "Ensure management of Financial Conflict of Interest (FCOI) in PHS-funded research",
-            "Condition": "Equity in privately held company related to PHS-funded research project",
-            "Action": "Develop a conflict of interest management plan if FCOI exists"
+            "Rule": "Equity in a privately held company related to a PHS-funded research project that requires a management plan."
           }
         ]
       },
 
       "Inventor_Equity_and_Licensing_Conflict_Policy": {
-        "Name": "Inventor Equity and Licensing Conflict Policy Rule",
-        "Rule": "When an individual has equity in the private company and is the inventor or co-inventor of technology and BCH aims or discussion to obtain a license to develop and commercialize the technology."
+        "Rules": [
+          {
+            "Name": "Inventor Equity and Licensing Conflict Policy Rule",
+            "Rule": "When an individual has equity in a private company and is the inventor or co-inventor of technology that BCH has licensed or aims to license to that company."
+          }
+        ]
       },
 
       "BCH_COI_Policy": {
-        "Name": "BCH COI Policy Rule",
-        "Rule": "Boston Children’s has a rebuttable presumption that members of the senior leadership team will not participate in outside for-profit Fiduciary Roles. The presumption can be overcome when there are compelling reasons that the for-profit Fiduciary Role will advance the mission of Boston Children’s Hospital."
+        "Rules": [
+          {
+            "Name": "BCH COI Policy Rule",
+            "Rule": "Senior leadership team members (fiduciary roles) in for-profit companies. Includes rebuttable presumption against participation without compelling reasons."
+          }
+        ]
       }
     }
   }

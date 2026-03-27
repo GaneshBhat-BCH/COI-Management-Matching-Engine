@@ -291,6 +291,9 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
             GLOBAL INSTRUCTIONS:
             {json.dumps(global_instr, indent=2)}
 
+            REFERENCE POLICIES (CRITICAL for Q13 and Q14):
+            {json.dumps(ref_policies, indent=2)}
+
             RETRY QUESTIONS:
             {json.dumps(retry_questions, indent=2)}
 
