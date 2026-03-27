@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
-from app.services.ai import get_embeddings
+from app.services.ai import get_embeddings, is_semantic_equivalent
 from app.utils.logger import log_event
 from app.utils.html_templates import generate_search_results_html
 from app.questions import QUESTIONS
@@ -139,10 +139,17 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                                 user_tokens = {t for t in user_tokens if t}
                                 pdf_tokens = {t for t in pdf_tokens if t}
                                 
+                                # Token intersection
                                 common = user_tokens.intersection(pdf_tokens)
                                 if common:
                                     score_mult = 0.8
                                     status_msg = f"Partial Match (Overlap: {len(common)} tokens)"
+                                else:
+                                    # 5. NEW Check 4: Semantic Equivalence (AI Bridge)
+                                    # Only for non-NA values to save tokens
+                                    if await is_semantic_equivalent(user_ref, found_answer):
+                                        score_mult = 1.0
+                                        status_msg = "Match (Semantic AI)"
 
                         if score_mult > 0:
                             matches.append({

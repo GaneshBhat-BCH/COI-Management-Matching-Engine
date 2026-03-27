@@ -328,3 +328,31 @@ async def analyze_document_and_answer(text_content: str, questions_config: dict 
         log_event("AI Service", f"Analysis failed: {str(e)}", "ERROR")
         print(f"AI ERROR: {e}")
         return {"answers": [], "usage": {}}
+async def is_semantic_equivalent(term1: str, term2: str) -> bool:
+    """
+    Uses AI to determine if two terms are semantically equivalent 
+    (e.g., abbreviations like BDA vs Business Development Administrator).
+    """
+    if not term1 or not term2:
+        return False
+    
+    # Fast-track literal matches
+    t1 = term1.lower().strip()
+    t2 = term2.lower().strip()
+    if t1 == t2:
+        return True
+
+    try:
+        response = await client.chat.completions.create(
+            model=GPT_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": "You are a semantic matching assistant. Compare two terms and decide if they represent the same entity, title, or value, even if one is an abbreviation or acronym. Answer only with 'YES' or 'NO'."},
+                {"role": "user", "content": f"Term 1: '{term1}'\nTerm 2: '{term2}'\nAre they semantically equivalent?"}
+            ],
+            max_tokens=5 # Keep it tiny
+        )
+        result = response.choices[0].message.content.upper().strip()
+        return "YES" in result
+    except Exception as e:
+        print(f"Semantic Check Error: {e}")
+        return False
