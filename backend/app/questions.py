@@ -38,7 +38,7 @@ QUESTIONS_DATA = {
       {
         "id": 4,
         "text": "What is the researcher’s equity in the company?",
-        "prompt": "Extract the data from the input and identify the researcher’s equity in the company. Normalize to Equity, Stock, StockOptions. If multiple options exist, return them as a comma-separated list (e.g., Equity,Stock). If not mentioned, return NA."
+        "prompt": "Extract the data from the input and identify the researcher’s equity in the company. Normalize to Cash, Stock, StockOptions. If multiple options exist, return them as a comma-separated list (e.g., Stock,StockOptions). If not mentioned, return NA."
       },
       {
         "id": 5,
