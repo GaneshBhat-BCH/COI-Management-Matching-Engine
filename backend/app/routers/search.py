@@ -1,3 +1,4 @@
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
 from app.services.ai import get_embeddings
