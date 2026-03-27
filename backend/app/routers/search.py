@@ -43,8 +43,8 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                   print(f"Warning: Question text not recognized for fallback ID: {q[:50]}...")
                   continue
              
-             # NEW Logic: Skip NA/Blank in query text to improve retrieval focus
-             if a.upper().strip() in ["NA", "N/A", ""] or not a.strip():
+             # NEW Logic: Skip NA/Blank/Empty Brackets in query text
+             if a.upper().strip() in ["NA", "N/A", "", "[]", "{}", "[ ]", "{ }"] or not a.strip():
                  continue
                  
              query_text += f" {q} {a} " # Space separated for keywords
@@ -87,7 +87,8 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                          q_id = QUESTION_TEXT_TO_ID.get(q_text.lower().strip(), "")
                     
                     user_ref = item.answer or ""
-                    if user_ref.upper().strip() in ["NA", "N/A", ""] or not user_ref.strip():
+                    # If user provided a null-like placeholder, ignore this question for scoring
+                    if user_ref.upper().strip() in ["NA", "N/A", "", "[]", "{}", "[ ]", "{ }"] or not user_ref.strip():
                         continue
 
                     weight = HIGH_WEIGHT_VAL if q_id in HIGH_WEIGHT_IDS else NORMAL_WEIGHT_VAL
