@@ -109,7 +109,8 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                         def normalize_for_match(text):
                             import re
                             text = text.lower()
-                            text = re.sub(r'[\s,\-/]', '', text) 
+                            # Strip ALL non-alphanumeric characters (including brackets, parens, etc)
+                            text = re.sub(r'[^a-zA-Z0-9]', '', text) 
                             return text
 
                         norm_user = normalize_for_match(user_ref)
@@ -132,8 +133,9 @@ async def search_documents(request: SearchRequest, db = Depends(get_db)):
                             else:
                                 # 4. Check 3: Token Partial Overlap
                                 import re
-                                user_tokens = set(re.split(r'[\s,\-/]+', user_ref.lower()))
-                                pdf_tokens = set(re.split(r'[\s,\-/]+', found_answer.lower()))
+                                # Split on ANY non-alphanumeric character sequence
+                                user_tokens = set(re.split(r'[^a-zA-Z0-9]+', user_ref.lower()))
+                                pdf_tokens = set(re.split(r'[^a-zA-Z0-9]+', found_answer.lower()))
                                 user_tokens = {t for t in user_tokens if t}
                                 pdf_tokens = {t for t in pdf_tokens if t}
                                 

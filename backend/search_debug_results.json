@@ -1,0 +1,77 @@
+{
+  "search_method_used": "Hybrid (Keyword + Vector)",
+  "results": [
+    {
+      "pdf_name": "Barrett - 001/Barrett Management Plan Signed.pdf",
+      "weightage_details": "Score: 3.8/4.0",
+      "match_score": "95.0%",
+      "search_method": "SQL Keyword",
+      "relevance_details": {
+        "vector": 0.0,
+        "keyword_rank": 0.045594532042741776
+      },
+      "matched_qa": [
+        {
+          "question": "Is the researcher a cofounder in a company outside of BCH?",
+          "pdf_answer": "Yes",
+          "user_answer_ref": "yes",
+          "match_type": "Match (Exact)",
+          "weight": 3.0,
+          "score_earned": 3.0,
+          "_is_match": true
+        },
+        {
+          "question": "What is the researcher\u2019s equity in the company?",
+          "pdf_answer": "Equity,StockOptions",
+          "user_answer_ref": "[StockOptions]",
+          "match_type": "Partial Match (Overlap: 1 tokens)",
+          "weight": 1.0,
+          "score_earned": 0.8,
+          "_is_match": true
+        }
+      ],
+      "unmatched_qa": []
+    },
+    {
+      "pdf_name": "Boyer - 001/Signed Plan1.pdf",
+      "weightage_details": "Score: 3.8/4.0",
+      "match_score": "95.0%",
+      "search_method": "SQL Keyword",
+      "relevance_details": {
+        "vector": 0.0,
+        "keyword_rank": 0.045594532042741776
+      },
+      "matched_qa": [
+        {
+          "question": "Is the researcher a cofounder in a company outside of BCH?",
+          "pdf_answer": "Yes",
+          "user_answer_ref": "yes",
+          "match_type": "Match (Exact)",
+          "weight": 3.0,
+          "score_earned": 3.0,
+          "_is_match": true
+        },
+        {
+          "question": "What is the researcher\u2019s equity in the company?",
+          "pdf_answer": "Equity,StockOptions",
+          "user_answer_ref": "[StockOptions]",
+          "match_type": "Partial Match (Overlap: 1 tokens)",
+          "weight": 1.0,
+          "score_earned": 0.8,
+          "_is_match": true
+        }
+      ],
+      "unmatched_qa": []
+    },
+    {
+      "pdf_name": "No Data Found",
+      "match_score": "0%",
+      "search_method": "Hybrid (Keyword + Vector)",
+      "relevance_details": {},
+      "matched_qa": [],
+      "unmatched_qa": [],
+      "feedback_message": "We don't have PDF 3 data currently matched with the criteria."
+    }
+  ],
+  "email_body": "<!DOCTYPE html> <html> <head> <style> body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6; } .container { max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff; } .header { background-color: #004d40; color: white; padding: 15px; border-radius: 8px 8px 0 0; text-align: center; } .header h2 { margin: 0; font-weight: 600; } .meta { background-color: #f5f5f5; padding: 10px 15px; margin-bottom: 20px; border-bottom: 1px solid #ddd; font-size: 0.9rem; } .card { margin-bottom: 25px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); } .card-header { background-color: #e0f2f1; padding: 10px 15px; border-bottom: 1px solid #b2dfdb; display: flex; justify-content: space-between; align-items: center; } .pdf-title { font-size: 1.1rem; font-weight: 700; color: #00695c; text-decoration: none; } .pdf-title:hover { text-decoration: underline; } .score-badge { background-color: #00796b; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9rem; } .card-body { padding: 15px; } .details-row { margin-bottom: 10px; font-size: 0.9rem; color: #555; } table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; table-layout: fixed; border-spacing: 0; } th { background-color: #fafafa; border-bottom: 2px solid #ddd; padding: 8px; text-align: left; font-weight: 600; color: #444; } td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; word-wrap: break-word; word-break: break-all; overflow-wrap: break-word; } .match-row { background-color: #f1f8e9; } .mismatch-row { background-color: #fffde7; } .notfound-row { background-color: #ffebee; } .status-exact { color: #2e7d32; font-weight: 600; } .status-mismatch { color: #c62828; font-weight: 600; } .footer { margin-top: 30px; font-size: 0.8rem; color: #888; text-align: center; border-top: 1px solid #eee; padding-top: 10px; } </style> </head> <body> <div class=\"container\"> <div class=\"header\"> <h2>COI Analysis Verification Report</h2> </div> <div class=\"card\"> <div class=\"card-header\"> <a href=\"https://bostonchildrenshospital.sharepoint.com/:f:/r/sites/OGCIntelligentAutomation/Legal%20Business%20Units/COI%20Management/COI%20Management%20Plans/Barrett%20-%20001/Barrett%20Management%20Plan%20Signed.pdf?csf=1&web=1&e=Ivm2oM\" class=\"pdf-title\" target=\"_blank\">\ud83d\udcc4 Barrett - 001/Barrett Management Plan Signed.pdf</a> <span class=\"score-badge\">Match: 95.0%</span> </div> <div class=\"card-body\"> <div class=\"details-row\"> <strong>Weighted Score Breakdown:</strong> Score: 3.8/4.0 </div> <table> <thead> <tr> <th style=\"width: 30%;\">Question</th> <th style=\"width: 20%;\">User Input</th> <th style=\"width: 20%;\">PDF Data</th> <th style=\"width: 15%;\">Status</th> <th style=\"width: 15%;\">Weight/Score</th> </tr> </thead> <tbody> <tr class=\"match-row\"> <td>Is the researcher a cofounder in a company outside of BCH?</td> <td>yes</td> <td>Yes</td> <td><span class=\"status-exact\">\u2714 Match (Exact)</span></td> <td><strong>3.0</strong> <span style=\"font-size:0.8em;color:#777;\">/ 3.0</span></td> </tr> <tr class=\"match-row\"> <td>What is the researcher\u2019s equity in the company?</td> <td>[StockOptions]</td> <td>Equity,StockOptions</td> <td><span class=\"status-exact\">\u2714 Partial Match (Overlap: 1 tokens)</span></td> <td><strong>0.8</strong> <span style=\"font-size:0.8em;color:#777;\">/ 1.0</span></td> </tr> </tbody> </table> </div> </div> <div class=\"card\"> <div class=\"card-header\"> <a href=\"https://bostonchildrenshospital.sharepoint.com/:f:/r/sites/OGCIntelligentAutomation/Legal%20Business%20Units/COI%20Management/COI%20Management%20Plans/Boyer%20-%20001/Signed%20Plan1.pdf?csf=1&web=1&e=Ivm2oM\" class=\"pdf-title\" target=\"_blank\">\ud83d\udcc4 Boyer - 001/Signed Plan1.pdf</a> <span class=\"score-badge\">Match: 95.0%</span> </div> <div class=\"card-body\"> <div class=\"details-row\"> <strong>Weighted Score Breakdown:</strong> Score: 3.8/4.0 </div> <table> <thead> <tr> <th style=\"width: 30%;\">Question</th> <th style=\"width: 20%;\">User Input</th> <th style=\"width: 20%;\">PDF Data</th> <th style=\"width: 15%;\">Status</th> <th style=\"width: 15%;\">Weight/Score</th> </tr> </thead> <tbody> <tr class=\"match-row\"> <td>Is the researcher a cofounder in a company outside of BCH?</td> <td>yes</td> <td>Yes</td> <td><span class=\"status-exact\">\u2714 Match (Exact)</span></td> <td><strong>3.0</strong> <span style=\"font-size:0.8em;color:#777;\">/ 3.0</span></td> </tr> <tr class=\"match-row\"> <td>What is the researcher\u2019s equity in the company?</td> <td>[StockOptions]</td> <td>Equity,StockOptions</td> <td><span class=\"status-exact\">\u2714 Partial Match (Overlap: 1 tokens)</span></td> <td><strong>0.8</strong> <span style=\"font-size:0.8em;color:#777;\">/ 1.0</span></td> </tr> </tbody> </table> </div> </div> <div class=\"footer\"> Generated by COI Management Matching Engine AI Agent </div> </div> </body> </html>"
+}
