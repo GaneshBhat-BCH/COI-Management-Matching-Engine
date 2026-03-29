@@ -20,6 +20,7 @@ class UploadRequest(BaseModel):
 
 @router.post("/upload")
 async def upload_file(
+    background_tasks: BackgroundTasks,
     request: Optional[UploadRequest] = None,
     db = Depends(get_db)
 ):
@@ -27,8 +28,8 @@ async def upload_file(
         # Case 1: Trigger SharePoint Sync (No body provided)
         if not request:
             log_event("Sync Module", "Automatic SharePoint sync triggered via /api/upload", "START")
-            processed_files = await sync_sharepoint()
-            return {"processed_files": processed_files}
+            background_tasks.add_task(sync_sharepoint)
+            return {"status": "Sync started in background. Please check the logs/database for progress."}
 
         # Case 2: Manual Upload (Existing logic)
         log_event("Upload Module", "Manual upload request received", "START")
