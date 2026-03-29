@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from app.database import get_db
 from app.services.ai import analyze_document_and_answer, get_embeddings
 from app.questions import QUESTIONS, QUESTIONS_DATA
