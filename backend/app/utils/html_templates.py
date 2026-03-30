@@ -146,3 +146,100 @@ def generate_search_results_html(results, search_method):
     # Minify the HTML by stripping whitespace and joining one line
     full_html = "".join(html_parts)
     return " ".join(full_html.split())
+
+
+def generate_maintenance_report_html(data_string: str):
+    """
+    Generates a professional HTML email body for Maintenance/Anniversary reports.
+    Input format: {date, user, id, file}, {date, user, id, file}
+    """
+    import re
+    
+    # 1. Parse the string format: {val1, val2, val3, val4}, {...}
+    # Matches everything inside { } and handles the commas
+    records = []
+    if data_string and data_string.strip():
+        # Regex to find content inside { }
+        matches = re.findall(r'\{(.*?)\}', data_string)
+        for m in matches:
+            parts = [p.strip() for p in m.split(',')]
+            if len(parts) >= 4:
+                records.append({
+                    "doc_date": parts[0],
+                    "from_user": parts[1],
+                    "doc_id": parts[2],
+                    "file_name": parts[3]
+                })
+
+    # 2. Base HTML Style (Consistent with Search)
+    html_parts = ["""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6; }
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff; }
+            .header { background-color: #1a237e; color: white; padding: 15px; border-radius: 8px 8px 0 0; text-align: center; }
+            .header h2 { margin: 0; font-weight: 600; }
+            .msg-box { padding: 30px; text-align: center; background-color: #f5f5f5; border-radius: 6px; margin: 20px 0; border: 1px dashed #ccc; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
+            th { background-color: #e8eaf6; border-bottom: 2px solid #3f51b5; padding: 12px; text-align: left; font-weight: 600; color: #1a237e; }
+            td { padding: 12px; border-bottom: 1px solid #eee; vertical-align: top; }
+            .footer { margin-top: 30px; font-size: 0.8rem; color: #888; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
+            .file-link { color: #3f51b5; text-decoration: none; font-weight: 600; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h2>COI Management: Annual Plan Anniversary Report</h2>
+            </div>
+    """]
+
+    if not records:
+        html_parts.append("""
+            <div class="msg-box">
+                <h3 style="color: #666;">No Management Plans found for today's anniversary.</h3>
+                <p>There are no actions required at this time.</p>
+            </div>
+        """)
+    else:
+        table_html = """
+            <p>The following Management Plans have reached their annual anniversary (Date/Month Match) as of today:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Researcher / Entity</th>
+                        <th>Anniversary Date</th>
+                        <th>Docusign ID</th>
+                        <th>Management Plan File</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for r in records:
+            # Construct SharePoint URL
+            encoded_path = urllib.parse.quote(r['file_name'])
+            sharepoint_url = f"{SHAREPOINT_ROOT_URL}/{encoded_path}?{SHAREPOINT_URL_PARAMS}"
+            
+            table_html += f"""
+                <tr>
+                    <td><strong>{r['from_user']}</strong></td>
+                    <td>{r['doc_date']}</td>
+                    <td style="font-family: monospace; font-size: 0.8em; color: #666;">{r['doc_id']}</td>
+                    <td><a href="{sharepoint_url}" class="file-link" target="_blank">📄 View Plan</a></td>
+                </tr>
+            """
+        table_html += "</tbody></table>"
+        html_parts.append(table_html)
+
+    html_parts.append("""
+            <div class="footer">
+                Automated Maintenance Report | COI Management Matching Engine
+            </div>
+        </div>
+    </body>
+    </html>
+    """)
+    
+    return "".join(html_parts)
