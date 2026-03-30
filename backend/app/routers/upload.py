@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from app.database import get_db
 from app.services.ai import analyze_document_and_answer, get_embeddings
 from app.questions import QUESTIONS, QUESTIONS_DATA
@@ -20,7 +20,6 @@ class UploadRequest(BaseModel):
 
 @router.post("/upload")
 async def upload_file(
-    background_tasks: BackgroundTasks,
     request: Optional[UploadRequest] = None,
     db = Depends(get_db)
 ):
@@ -28,8 +27,8 @@ async def upload_file(
         # Case 1: Trigger SharePoint Sync (No body provided)
         if not request:
             log_event("Sync Module", "Automatic SharePoint sync triggered via /api/upload", "START")
-            background_tasks.add_task(sync_sharepoint)
-            return {"status": "Sync started in background. Please check the logs/database for progress."}
+            processed_files = await sync_sharepoint()
+            return {"processed_files": processed_files}
 
         # Case 2: Manual Upload (Existing logic)
         log_event("Upload Module", "Manual upload request received", "START")
