@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS coi_mgmt.pdf_documents (
     doc_date TEXT,
     docusign_id TEXT,
     from_user TEXT,
+    company TEXT,
+    email TEXT,
     uploaded_at TIMESTAMP DEFAULT NOW()
 );
 
