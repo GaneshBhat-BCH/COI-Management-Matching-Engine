@@ -108,8 +108,13 @@ QUESTIONS_DATA = {
       {
         "id": 103,
         "text": "Metadata: FROM",
-        "prompt": "Extract the 'FROM' field or identify the primary sender/entity from whom the document originates."
-      }
+        "prompt": "Extract the human researcher name(s) from the 'FROM' field or signature block. \n\nRULES:\n1. Format as 'Last Name First Name' (e.g., 'Andrews Nancy').\n2. Remove professional titles (MD, PhD, M.D, Ph.D, MBBS, MPH, BM, B.M., DO, D.O., etc.) and middle initials.\n3. If multiple names, separate with a comma (e.g., 'Andrews Nancy, Javalkar Eshaan').\n4. IMPORTANT: DO NOT include institutional names like 'Boston Children's Hospital' or 'BCH'. Return ONLY human names.\n5. Return ONLY the standardized name(s). No explanation."
+      },
+      {
+        "id": 104,
+        "text": "Metadata: COMPANY",
+        "prompt": "Extract the name of the company or entity the management plan is for. Ensure it is the exact company name without suffixes. If not mentioned, return NA."
+      },
     ],
 
     "REFERENCE_POLICIES": {

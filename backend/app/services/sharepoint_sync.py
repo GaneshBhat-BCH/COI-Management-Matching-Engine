@@ -3,6 +3,7 @@ import requests
 import os
 import json
 import asyncio
+import re
 from datetime import datetime
 from dotenv import load_dotenv
 from databases import Database
@@ -60,7 +61,9 @@ async def check_schema(db: Database):
             "modified_at": "TIMESTAMP",
             "doc_date": "TEXT",
             "docusign_id": "TEXT",
-            "from_user": "TEXT"
+            "from_user": "TEXT",
+            "company": "TEXT",
+            "email": "TEXT"
         }
         
         for col, col_type in required_cols.items():
@@ -90,7 +93,7 @@ async def sync_sharepoint():
     headers = {"Authorization": f"Bearer {token}"}
     
     # 0. Resolve the specific folder ID
-    target_folder_path = "Legal Business Units/COI Management/COI Management Plans"
+    target_folder_path = "COI Management/COI Management Plans"
     encoded_path = target_folder_path.replace(" ", "%20")
     resolve_url = f"https://graph.microsoft.com/v1.0/drives/{DRIVE_ID}/root:/{encoded_path}"
     
@@ -101,21 +104,13 @@ async def sync_sharepoint():
             target_folder_id = resolve_resp.json().get("id")
             print(f"Resolved target folder ID by path: {target_folder_id}")
         else:
-            print(f"Could not resolve '{target_folder_path}' directly. Searching...")
-            search_url = f"https://graph.microsoft.com/v1.0/drives/{DRIVE_ID}/root/search(q='COI Management Plans')"
-            search_resp = requests.get(search_url, headers=headers)
-            if search_resp.status_code == 200:
-                results = search_resp.json().get("value", [])
-                for res in results:
-                    if res.get("name") == "COI Management Plans" and "folder" in res:
-                        target_folder_id = res.get("id")
-                        print(f"Found target folder ID by search: {target_folder_id}")
-                        break
-            
-            if not target_folder_id:
-                 print("Critical: Target folder not found. Falling back to root (not recommended).")
+            print(f"Could not resolve '{target_folder_path}' directly. Aborting sync to prevent root drive scanning.")
+            await db.disconnect()
+            return processed_files
     except Exception as e:
         print(f"Error resolving path: {e}")
+        await db.disconnect()
+        return processed_files
 
     # 1. Traverse Drive (Recursive)
     async def process_folder(folder_id=None, current_path=""):
@@ -161,8 +156,17 @@ async def sync_sharepoint():
                         modified_at_str = item["lastModifiedDateTime"] # ISO format
                         modified_at = datetime.fromisoformat(modified_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
                         
+                        # FALLBACK EMAIL FROM SHAREPOINT METADATA
+                        sp_email = "NA"
+                        try:
+                            # Prefer lastModifiedBy, fallback to createdBy
+                            user_meta = item.get("lastModifiedBy", {}).get("user") or item.get("createdBy", {}).get("user")
+                            if user_meta:
+                                sp_email = user_meta.get("email") or user_meta.get("userPrincipalName") or "NA"
+                        except: pass
+
                         # Check if exists in DB
-                        query_check = "SELECT pdf_id, modified_at, result_body, input_body FROM coi_mgmt.pdf_documents WHERE file_name = :file_name"
+                        query_check = "SELECT pdf_id, modified_at, result_body, input_body, company, from_user, email FROM coi_mgmt.pdf_documents WHERE file_name = :file_name"
                         existing = await db.fetch_one(query_check, values={"file_name": display_file_name})
                         
                         pdf_id = None
@@ -172,6 +176,9 @@ async def sync_sharepoint():
                             db_modified_at = existing["modified_at"]
                             result_body_str = existing["result_body"]
                             db_input_body = existing["input_body"]
+                            db_company = existing["company"]
+                            db_from_user = existing["from_user"]
+                            db_email = existing["email"]
                             
                             has_answers = False
                             if result_body_str:
@@ -184,6 +191,84 @@ async def sync_sharepoint():
                                             has_answers = True
                                 except: pass
                                 
+                            # NEW REPAIR LOGIC: If Company is missing but Input Body is present, repair it retroactively
+                            if (not db_company or str(db_company).upper() in ["NA", "N/A", "NONE", ""]) and db_input_body:
+                                print(f"Repairing missing company metadata for: {display_file_name}")
+                                # Focused prompt for just the company metadata - more aggressive for repairs
+                                repair_q = {
+                                    "QUESTIONS_DATA": {
+                                        "global_instructions": QUESTIONS_DATA["QUESTIONS_DATA"]["global_instructions"],
+                                        "QUESTIONS": [
+                                            {
+                                                "id": 104,
+                                                "text": "Metadata: COMPANY",
+                                                "prompt": "Identify the company or entity this management plan is for. Scan the title, header, and entire text. If you see multiple entities, pick the external one (e.g., a pharmaceutical company or startup). If absolutely not found, return NA."
+                                            }
+                                        ]
+                                    }
+                                }
+                                # Call AI (targeted repair does not trigger re_process)
+                                repair_result = await analyze_document_and_answer(db_input_body, repair_q)
+                                if repair_result.get("answers"):
+                                    new_company = repair_result["answers"][0].get("answer_text", "NA")
+                                    
+                                    # RE-CHECK LOGIC: If still NA, try one last 'Extreme' scan
+                                    if new_company == "NA" or not new_company:
+                                        print(f"Initial repair failed for {display_file_name}. Attempting secondary deep-dive...")
+                                        extreme_q = {
+                                            "QUESTIONS_DATA": {
+                                                "global_instructions": QUESTIONS_DATA["QUESTIONS_DATA"]["global_instructions"],
+                                                "QUESTIONS": [
+                                                    {
+                                                        "id": 104,
+                                                        "text": "Deep Extract: COMPANY",
+                                                        "prompt": "EXTREME SCAN REQUIRED: Disregard all internal headers. Look for signatures, logos, or legal entity names that are NOT Boston Children's Hospital. If you see ANY third-party entity (e.g. Novartis, Merck, a startup), return its name. Return NA ONLY if the document is completely blank of other entities."
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                        extreme_result = await analyze_document_and_answer(db_input_body, extreme_q)
+                                        if extreme_result.get("answers"):
+                                            new_company = extreme_result["answers"][0].get("answer_text", "NA")
+
+                                    # FINAL RE-CHECK: If STILL NA, do a "Deep Repair" by re-downloading and using Vision
+                                    if new_company == "NA" or not new_company:
+                                        print(f"Deep Repair Triggered for {display_file_name}. Checking directly from file...")
+                                        try:
+                                            # Download file for visual check
+                                            down_url = item["@microsoft.graph.downloadUrl"]
+                                            f_content = requests.get(down_url).content
+                                            t_path = os.path.join(os.environ.get("TEMP", "/tmp"), f"repair_{raw_file_name}")
+                                            with open(t_path, "wb") as f: f.write(f_content)
+                                            
+                                            # Convert to images and use Vision API
+                                            imgs = pdf_to_base64_images(t_path)
+                                            vision_repair_q = {
+                                                "QUESTIONS_DATA": {
+                                                    "global_instructions": "Identify the external company name from the document visuals (logos, signatures, headers).",
+                                                    "QUESTIONS": [
+                                                        {
+                                                            "id": 104,
+                                                            "text": "Vision Extract: COMPANY",
+                                                            "prompt": "Find the name of the external company mentioned. Look for logos or signature lines. Return ONLY the company name or NA."
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                            vision_res = await analyze_document_visual(imgs, vision_repair_q)
+                                            if vision_res.get("answers"):
+                                                new_company = vision_res["answers"][0].get("answer_text", "NA")
+                                            
+                                            if os.path.exists(t_path): os.remove(t_path)
+                                        except Exception as e:
+                                            print(f"Deep Repair Error for {display_file_name}: {e}")
+
+                                    await db.execute("UPDATE coi_mgmt.pdf_documents SET company = :company WHERE pdf_id = :pdf_id", 
+                                                   {"company": new_company, "pdf_id": pdf_id})
+                                    print(f"Retroactive Repair: Company Resolved to -> {new_company}")
+                                    db_company = new_company # Update local reference for subsequent logic
+                                
+
                             if not has_answers:
                                 re_process = True
                                 print(f"Re-processing {display_file_name} (Missing or invalid answers)")
@@ -230,7 +315,7 @@ async def sync_sharepoint():
                                 raw_ocr_text = await ocr_document_visual(base64_imgs)
                                 
                                 if raw_ocr_text:
-                                    input_body = f"[Hybrid Input: OCRed {len(base64_imgs)} pages]"
+                                    input_body = raw_ocr_text
                                     ai_result = await analyze_document_and_answer(raw_ocr_text, QUESTIONS_DATA)
                                 else:
                                     # Final Fallback: use whatever text we got from local extraction if it exists
@@ -254,10 +339,12 @@ async def sync_sharepoint():
                             print(f"AI extraction failed for {display_file_name}")
                             continue
     
-                        # Pluck Metadata Fields (IDs 101, 102, 103)
+                        # Pluck Metadata Fields (IDs 101, 102, 103, 104, 105)
                         doc_date = "NA"
                         docusign_id = "NA"
                         from_user = "NA"
+                        company_name = "NA"
+                        extracted_email = "NA"
                         
                         final_answers = []
                         for ans in answers_data:
@@ -265,8 +352,13 @@ async def sync_sharepoint():
                             if q_id == 101: doc_date = ans.get("answer_text", "NA")
                             elif q_id == 102: docusign_id = ans.get("answer_text", "NA")
                             elif q_id == 103: from_user = ans.get("answer_text", "NA")
+                            elif q_id == 104: company_name = ans.get("answer_text", "NA")
+                            elif q_id == 105: extracted_email = ans.get("answer_text", "NA")
                             else:
                                  final_answers.append(ans)
+                        
+                        # Email Resolution: Hardcoded to 'NEW' as per user requirement
+                        user_email = "NEW"
     
                         # 4. Initial DB Record (to get pdf_id)
                         if existing:
@@ -301,9 +393,9 @@ async def sync_sharepoint():
                         query_update = """
                         UPDATE coi_mgmt.pdf_documents 
                         SET doc_date = :doc_date, docusign_id = :docusign_id, 
-                            from_user = :from_user, result_body = :result_body,
-                            input_body = :input_body, file_path = :file_path,
-                            modified_at = :modified_at
+                            from_user = :from_user, company = :company, email = :email,
+                            result_body = :result_body, input_body = :input_body, 
+                            file_path = :file_path, modified_at = :modified_at
                         WHERE pdf_id = :pdf_id
                         """
                         await db.execute(query_update, values={
@@ -311,6 +403,8 @@ async def sync_sharepoint():
                             "doc_date": doc_date,
                             "docusign_id": docusign_id,
                             "from_user": from_user,
+                            "company": company_name,
+                            "email": user_email,
                             "result_body": result_body_json,
                             "input_body": input_body,
                             "file_path": item.get("webUrl", "sharepoint"),
