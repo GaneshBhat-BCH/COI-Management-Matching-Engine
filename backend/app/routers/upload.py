@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import uuid
 import json
 
-from app.services.sharepoint_sync import sync_sharepoint
+from app.services.sharepoint_sync import sync_sharepoint, retroactive_name_disambiguation
 from typing import Optional
 
 router = APIRouter()
@@ -28,6 +28,11 @@ async def upload_file(
         if not request:
             log_event("Sync Module", "Automatic SharePoint sync triggered via /api/upload", "START")
             processed_files = await sync_sharepoint()
+            
+            # Phase 2: Integrated Name Disambiguation
+            # Ensures 100% compliance with 'Single User' rule immediately after sync
+            await retroactive_name_disambiguation()
+            
             return {"processed_files": processed_files}
 
         # Case 2: Manual Upload (Existing logic)

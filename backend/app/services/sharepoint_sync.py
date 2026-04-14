@@ -13,6 +13,75 @@ from app.questions import QUESTIONS_DATA, QUESTIONS
 from app.utils.logger import log_event
 from app.utils.chunking import chunk_text
 
+def apply_from_user_filter(from_user_str, file_name):
+    """
+    Ensures only ONE researcher name is kept.
+    Matches candidates against the file name's tokens.
+    """
+    if not from_user_str or from_user_str.upper() == 'NA':
+        return from_user_str
+    
+    # 1. Split into candidates
+    candidates = re.split(r';|,| and | & ', from_user_str, flags=re.IGNORECASE)
+    candidates = [c.strip() for c in candidates if c.strip()]
+    
+    if len(candidates) <= 1:
+        return candidates[0] if candidates else from_user_str
+    
+    # 2. Normalize File Name for matching
+    # Remove extension, sequence numbers, and extra symbols
+    file_name_clean = re.sub(r'\.(pdf|docx)$', '', file_name, flags=re.IGNORECASE)
+    file_name_clean = re.sub(r'-\s*\d+$', '', file_name_clean) # Remove trailing numbers like -001
+    file_name_clean = re.sub(r'[^a-zA-Z0-9\s]', ' ', file_name_clean)
+    file_tokens = set(t.lower() for t in file_name_clean.split() if len(t) > 2)
+    
+    # 3. Match each candidate against file tokens
+    for cand in candidates:
+        # Clean (remove degrees and middle initials)
+        clean_cand = re.sub(r'\b(MD|M\.D\.|PhD|Ph\.D\.|DO|D\.O\.|MBBS|MPH|BM|B\.V\.)\b', '', cand, flags=re.IGNORECASE)
+        clean_cand = re.sub(r'\b[A-Z]\.?\b', '', clean_cand).strip() # Remove initials
+        
+        cand_tokens = [t.lower() for t in re.findall(r'\w+', clean_cand) if len(t) > 2]
+        
+        # If any part of the candidate matches a part of the file name
+        if any(t in file_tokens for t in cand_tokens):
+            return cand
+            
+    # EDGE CASE: Default to first candidate if no word match found
+    return candidates[0]
+
+async def retroactive_name_disambiguation():
+    """
+    Scans the entire database for any records with multi-user names and fixes them.
+    Ensures 100% compliance with the single-user policy.
+    """
+    db = Database(DATABASE_URL)
+    await db.connect()
+    try:
+        # Find records with common separators
+        query = "SELECT pdf_id, from_user, file_name FROM coi_mgmt.pdf_documents WHERE from_user ~* ';|,| and | & '"
+        rows = await db.fetch_all(query)
+        
+        if not rows:
+            return
+            
+        print(f"Retroactive Disambiguation: Found {len(rows)} potential multi-user records.")
+        for row in rows:
+            pdf_id = row['pdf_id']
+            orig_name = row['from_user']
+            file_name = row['file_name']
+            
+            single_name = apply_from_user_filter(orig_name, file_name)
+            
+            if single_name != orig_name:
+                await db.execute(
+                    "UPDATE coi_mgmt.pdf_documents SET from_user = :new_name WHERE pdf_id = :pdf_id",
+                    {"new_name": single_name, "pdf_id": pdf_id}
+                )
+                print(f"  Fixed: '{orig_name}' -> '{single_name}'")
+    finally:
+        await db.disconnect()
+
 # Load .env
 dotenv_path = os.path.join(os.getcwd(), 'app', '.env')
 load_dotenv(dotenv_path)
@@ -356,6 +425,9 @@ async def sync_sharepoint():
                             elif q_id == 105: extracted_email = ans.get("answer_text", "NA")
                             else:
                                  final_answers.append(ans)
+                        
+                        # Apply Filter to 'from_user'
+                        from_user = apply_from_user_filter(from_user, display_file_name)
                         
                         # Email Resolution: Hardcoded to 'NEW' as per user requirement
                         user_email = "NEW"
